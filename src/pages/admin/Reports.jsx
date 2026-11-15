@@ -4,7 +4,7 @@ import useSWR from 'swr';
 import {
   Activity, AlertCircle, BarChart3, BookOpen, BrainCircuit,
   CalendarDays, CheckCircle2, ClipboardCheck, Eye, Loader2, RefreshCw, Search, Users, X,
-  Download, Send, Mail, Check, FileSpreadsheet
+  Download, Check, FileSpreadsheet
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
@@ -340,9 +340,8 @@ const ProgramPopularity = ({ attempts, programs }) => {
   );
 };
 
-// ─── Generate & Send Report Modal ─────────────────────────────────────────────
-const GenerateReportModal = ({ user, profiles, attempts, programs, onClose }) => {
-  const [targetEmail, setTargetEmail] = useState(user?.email || '');
+// ─── Generate & Download Report Modal ─────────────────────────────────────────
+const GenerateReportModal = ({ profiles, attempts, onClose }) => {
   const [includeAssessment, setIncludeAssessment] = useState(true);
   const [includePrograms, setIncludePrograms] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
@@ -350,74 +349,69 @@ const GenerateReportModal = ({ user, profiles, attempts, programs, onClose }) =>
 
   // Generate CSV data from current report state
   const buildCsvContent = () => {
-    const profileMap = new Map(profiles.map(p => [p.id, p]));
     const latestAttempts = new Map();
-    attempts.forEach(a => {
-      if (!latestAttempts.has(a.user_id)) latestAttempts.set(a.user_id, a);
-    });
+    if (includeAssessment) {
+      attempts.forEach(a => {
+        if (!latestAttempts.has(a.user_id)) latestAttempts.set(a.user_id, a);
+      });
+    }
 
-    const rows = [
-      ['Student Name', 'Student No.', 'Account Status', 'Registered Date', 'Holland Code', 'Assessment Completed Date']
-    ];
+    const headers = ['Student Name', 'Student No.', 'Account Status', 'Registered Date'];
+    if (includeAssessment) {
+      headers.push('Holland Code', 'Assessment Completed Date');
+    }
+
+    const rows = [headers];
 
     profiles.forEach(p => {
       const att = latestAttempts.get(p.id);
-      rows.push([
+      const row = [
         `"${p.first_name || ''} ${p.last_name || ''}"`.trim(),
         `"${p.student_no || 'N/A'}"`,
         p.status || 'pending',
-        p.created_at ? new Date(p.created_at).toLocaleDateString() : 'N/A',
-        att?.result?.code || 'Not Taken',
-        att?.completed_at ? new Date(att.completed_at).toLocaleDateString() : 'N/A'
-      ]);
+        p.created_at ? new Date(p.created_at).toLocaleDateString() : 'N/A'
+      ];
+      if (includeAssessment) {
+        row.push(
+          att?.result?.code || 'Not Taken',
+          att?.completed_at ? new Date(att.completed_at).toLocaleDateString() : 'N/A'
+        );
+      }
+      rows.push(row);
     });
 
     return rows.map(r => r.join(',')).join('\n');
   };
 
-  const handleDownloadFile = () => {
-    const csv = buildCsvContent();
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `SkillMatchPH_Report_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
-
-  const handleSendToEmail = async (e) => {
+  const handleDownload = (e) => {
     e.preventDefault();
     setIsExporting(true);
     setStatusMessage(null);
 
-    // 1. Immediately trigger client download of the generated file
-    handleDownloadFile();
+    try {
+      const csv = buildCsvContent();
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `SkillMatchPH_Report_${new Date().toISOString().slice(0, 10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
 
-    // 2. Prepare client-side mailto draft to logged in email with summary & notification
-    const totalStudents = profiles.length;
-    const completedCount = new Set(attempts.map(a => a.user_id)).size;
-    const subject = encodeURIComponent(`SkillMatchPH Analytics Report (${new Date().toLocaleDateString()})`);
-    const body = encodeURIComponent(
-      `Hello Admin,\n\nHere is your generated SkillMatchPH report summary:\n\n` +
-      `• Total Registered Students: ${totalStudents}\n` +
-      `• Completed Assessments: ${completedCount}\n` +
-      `• Report Generated For: ${targetEmail}\n` +
-      `• Generated On: ${new Date().toLocaleString()}\n\n` +
-      `The detailed CSV data file has been generated and downloaded to your device.\n\nBest regards,\nSkillMatchPH System`
-    );
-
-    // Open mail client draft addressed to the logged-in email
-    const mailtoUrl = `mailto:${encodeURIComponent(targetEmail)}?subject=${subject}&body=${body}`;
-    window.open(mailtoUrl, '_blank');
-
-    setStatusMessage({
-      type: 'success',
-      text: `Report file generated and downloaded! Email draft opened for ${targetEmail}.`
-    });
-    setIsExporting(false);
+      setStatusMessage({
+        type: 'success',
+        text: 'Report file generated and downloaded successfully!'
+      });
+    } catch {
+      setStatusMessage({
+        type: 'error',
+        text: 'Failed to generate report file. Please try again.'
+      });
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   return (
@@ -445,7 +439,7 @@ const GenerateReportModal = ({ user, profiles, attempts, programs, onClose }) =>
         exit={{ scale: 0.95, opacity: 0, y: 15 }}
         onClick={(e) => e.stopPropagation()}
         className="glass-card modal-content"
-        style={{ width: '100%', maxWidth: '520px', padding: '2rem', borderRadius: '20px' }}
+        style={{ width: '100%', maxWidth: '500px', padding: '2rem', borderRadius: '20px' }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
@@ -464,7 +458,7 @@ const GenerateReportModal = ({ user, profiles, attempts, programs, onClose }) =>
             <div>
               <h2 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 700 }}>Generate Report File</h2>
               <p style={{ margin: '0.2rem 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                Send student analytics & assessment records to email
+                Download student analytics and assessment records
               </p>
             </div>
           </div>
@@ -473,37 +467,7 @@ const GenerateReportModal = ({ user, profiles, attempts, programs, onClose }) =>
           </button>
         </div>
 
-        <form onSubmit={handleSendToEmail} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          <div>
-            <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '0.4rem', fontWeight: 600 }}>
-              Recipient Email (Logged in account)
-            </label>
-            <div style={{ position: 'relative' }}>
-              <Mail size={16} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
-              <input
-                type="email"
-                required
-                value={targetEmail}
-                onChange={(e) => setTargetEmail(e.target.value)}
-                placeholder="admin@school.edu.ph"
-                style={{
-                  width: '100%',
-                  padding: '0.75rem 1rem 0.75rem 2.6rem',
-                  borderRadius: '10px',
-                  background: 'rgba(0,0,0,0.25)',
-                  border: '1px solid var(--glass-border)',
-                  color: '#fff',
-                  fontSize: '0.9rem',
-                  outline: 'none',
-                  boxSizing: 'border-box'
-                }}
-              />
-            </div>
-            <small style={{ color: 'var(--text-secondary)', fontSize: '0.78rem', display: 'block', marginTop: '0.35rem' }}>
-              Defaults to your active logged in email ({user?.email || 'N/A'}).
-            </small>
-          </div>
-
+        <form onSubmit={handleDownload} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           <div style={{
             background: 'rgba(255,255,255,0.02)',
             border: '1px solid var(--glass-border)',
@@ -540,49 +504,31 @@ const GenerateReportModal = ({ user, profiles, attempts, programs, onClose }) =>
             </div>
           )}
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', marginTop: '0.5rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginTop: '0.5rem' }}>
             <button
-              type="button"
-              onClick={handleDownloadFile}
-              className="icon-btn"
+              type="submit"
+              disabled={isExporting}
+              className="submit-btn"
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '0.4rem',
-                fontSize: '0.85rem',
-                fontWeight: 600,
-                width: 'auto',
-                padding: '0.65rem 1rem',
-                borderRadius: '10px',
-                border: '1px solid var(--glass-border)'
+                gap: '0.5rem',
+                padding: '0.75rem 1.5rem',
+                fontSize: '0.9rem',
+                fontWeight: 700,
+                margin: 0,
+                width: '100%',
+                justifyContent: 'center',
+                background: 'linear-gradient(135deg, var(--accent-teal) 0%, var(--accent-violet) 100%)',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '12px',
+                cursor: 'pointer'
               }}
-              title="Download direct CSV file immediately"
             >
-              <Download size={15} /> Save CSV
+              {isExporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+              Generate & Download File
             </button>
-
-            <div style={{ display: 'flex', gap: '0.6rem' }}>
-              <button type="button" onClick={onClose} className="cancel-btn">
-                Close
-              </button>
-              <button
-                type="submit"
-                disabled={isExporting}
-                className="submit-btn"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.4rem',
-                  padding: '0.65rem 1.25rem',
-                  fontSize: '0.88rem',
-                  fontWeight: 700,
-                  margin: 0
-                }}
-              >
-                {isExporting ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
-                Generate & Send
-              </button>
-            </div>
           </div>
         </form>
       </motion.div>
@@ -592,7 +538,6 @@ const GenerateReportModal = ({ user, profiles, attempts, programs, onClose }) =>
 
 // ─── Main Export Component ───────────────────────────────────────────────────
 export default function Reports() {
-  const { user } = useAuth();
   const { data, error, isLoading, mutate } = useSWR('admin-reports', fetchReports);
   const [tab, setTab] = useState('activity');
   const [period, setPeriod] = useState('all');
@@ -700,14 +645,12 @@ export default function Reports() {
         ) : null}
       </AnimatePresence>
 
-      {/* Generate & Send Report to Email Modal */}
+      {/* Generate & Download Report Modal */}
       <AnimatePresence>
         {showGenerateModal ? (
           <GenerateReportModal
-            user={user}
             profiles={allProfiles}
             attempts={data?.attempts || EMPTY}
-            programs={data?.programs || EMPTY}
             onClose={() => setShowGenerateModal(false)}
           />
         ) : null}

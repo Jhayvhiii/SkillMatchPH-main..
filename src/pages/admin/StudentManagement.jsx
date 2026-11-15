@@ -42,11 +42,11 @@ const SearchBar = memo(({ value, onChange, inputRef }) => {
         style={{
           width: '100%',
           padding: '0.65rem 2.5rem 0.65rem 2.8rem',
-          background: 'rgba(0,0,0,0.25)',
+          background: 'var(--field-bg)',
           border: '1px solid var(--glass-border)',
           borderRadius: '12px',
           fontSize: '0.9rem',
-          color: '#fff',
+          color: 'var(--text-primary)',
           outline: 'none',
           boxSizing: 'border-box'
         }}
@@ -363,8 +363,8 @@ const StudentManagement = () => {
                 padding: '0.45rem 0.75rem',
                 borderRadius: '10px',
                 border: '1px solid var(--glass-border)',
-                background: 'rgba(0, 0, 0, 0.3)',
-                color: '#fff',
+                background: 'var(--field-bg)',
+                color: 'var(--text-primary)',
                 fontSize: '0.85rem',
                 outline: 'none',
                 cursor: 'pointer'
@@ -391,8 +391,8 @@ const StudentManagement = () => {
                 padding: '0.55rem 0.75rem',
                 borderRadius: '10px',
                 border: '1px solid var(--glass-border)',
-                background: 'rgba(0, 0, 0, 0.3)',
-                color: '#fff',
+                background: 'var(--field-bg)',
+                color: 'var(--text-primary)',
                 fontSize: '0.85rem',
                 outline: 'none',
                 cursor: 'pointer'
@@ -563,14 +563,14 @@ const StudentManagement = () => {
           alignItems: 'center',
           padding: '0.85rem 1.25rem',
           borderTop: '1px solid var(--glass-border)',
-          background: 'rgba(0,0,0,0.2)',
+          background: 'var(--glass-bg)',
           fontSize: '0.85rem',
           color: 'var(--text-secondary)',
           flexWrap: 'wrap',
           gap: '0.75rem'
         }}>
           <div>
-            Showing <strong style={{ color: '#fff' }}>{startIndex}</strong> – <strong style={{ color: '#fff' }}>{endIndex}</strong> of <strong style={{ color: '#fff' }}>{totalItems}</strong> students
+            Showing <strong style={{ color: 'var(--text-primary)' }}>{startIndex}</strong> – <strong style={{ color: 'var(--text-primary)' }}>{endIndex}</strong> of <strong style={{ color: 'var(--text-primary)' }}>{totalItems}</strong> students
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
@@ -583,7 +583,8 @@ const StudentManagement = () => {
                 borderRadius: '8px',
                 border: '1px solid var(--glass-border)',
                 background: 'var(--glass-bg)',
-                color: validCurrentPage <= 1 ? 'rgba(255,255,255,0.2)' : '#fff',
+                color: validCurrentPage <= 1 ? 'var(--text-secondary)' : 'var(--text-primary)',
+                opacity: validCurrentPage <= 1 ? 0.35 : 1,
                 cursor: validCurrentPage <= 1 ? 'not-allowed' : 'pointer',
                 display: 'flex',
                 alignItems: 'center'
@@ -602,7 +603,8 @@ const StudentManagement = () => {
                 borderRadius: '8px',
                 border: '1px solid var(--glass-border)',
                 background: 'var(--glass-bg)',
-                color: validCurrentPage <= 1 ? 'rgba(255,255,255,0.2)' : '#fff',
+                color: validCurrentPage <= 1 ? 'var(--text-secondary)' : 'var(--text-primary)',
+                opacity: validCurrentPage <= 1 ? 0.35 : 1,
                 cursor: validCurrentPage <= 1 ? 'not-allowed' : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
@@ -613,7 +615,7 @@ const StudentManagement = () => {
               <ChevronLeft size={16} /> Prev
             </button>
 
-            <span style={{ padding: '0 0.5rem', fontWeight: 600, color: '#fff' }}>
+            <span style={{ padding: '0 0.5rem', fontWeight: 600, color: 'var(--text-primary)' }}>
               Page {validCurrentPage} of {totalPages}
             </span>
 
@@ -626,7 +628,8 @@ const StudentManagement = () => {
                 borderRadius: '8px',
                 border: '1px solid var(--glass-border)',
                 background: 'var(--glass-bg)',
-                color: validCurrentPage >= totalPages ? 'rgba(255,255,255,0.2)' : '#fff',
+                color: validCurrentPage >= totalPages ? 'var(--text-secondary)' : 'var(--text-primary)',
+                opacity: validCurrentPage >= totalPages ? 0.35 : 1,
                 cursor: validCurrentPage >= totalPages ? 'not-allowed' : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
@@ -646,7 +649,8 @@ const StudentManagement = () => {
                 borderRadius: '8px',
                 border: '1px solid var(--glass-border)',
                 background: 'var(--glass-bg)',
-                color: validCurrentPage >= totalPages ? 'rgba(255,255,255,0.2)' : '#fff',
+                color: validCurrentPage >= totalPages ? 'var(--text-secondary)' : 'var(--text-primary)',
+                opacity: validCurrentPage >= totalPages ? 0.35 : 1,
                 cursor: validCurrentPage >= totalPages ? 'not-allowed' : 'pointer',
                 display: 'flex',
                 alignItems: 'center'

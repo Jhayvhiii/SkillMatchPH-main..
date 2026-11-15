@@ -440,10 +440,10 @@ const UniversityManagement = () => {
             style={{
               width: '100%',
               padding: '0.65rem 2.5rem 0.65rem 2.8rem',
-              background: 'rgba(0,0,0,0.25)',
+              background: 'var(--field-bg)',
               border: '1px solid var(--glass-border)',
               borderRadius: '12px',
-              color: '#fff',
+              color: 'var(--text-primary)',
               fontSize: '0.9rem',
               outline: 'none',
               boxSizing: 'border-box'
@@ -510,8 +510,8 @@ const UniversityManagement = () => {
               padding: '0.5rem 0.75rem',
               borderRadius: '10px',
               border: '1px solid var(--glass-border)',
-              background: 'rgba(0, 0, 0, 0.3)',
-              color: '#fff',
+              background: 'var(--field-bg)',
+              color: 'var(--text-primary)',
               fontSize: '0.85rem',
               outline: 'none',
               cursor: 'pointer'
@@ -660,7 +660,7 @@ const UniversityManagement = () => {
         gap: '0.75rem'
       }}>
         <div>
-          Showing <strong style={{ color: '#fff' }}>{startIndex}</strong> – <strong style={{ color: '#fff' }}>{endIndex}</strong> of <strong style={{ color: '#fff' }}>{totalItems}</strong> institutions
+          Showing <strong style={{ color: 'var(--text-primary)' }}>{startIndex}</strong> – <strong style={{ color: 'var(--text-primary)' }}>{endIndex}</strong> of <strong style={{ color: 'var(--text-primary)' }}>{totalItems}</strong> institutions
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
@@ -673,7 +673,8 @@ const UniversityManagement = () => {
               borderRadius: '8px',
               border: '1px solid var(--glass-border)',
               background: 'var(--glass-bg)',
-              color: validCurrentPage <= 1 ? 'rgba(255,255,255,0.2)' : '#fff',
+              color: validCurrentPage <= 1 ? 'var(--text-secondary)' : 'var(--text-primary)',
+              opacity: validCurrentPage <= 1 ? 0.35 : 1,
               cursor: validCurrentPage <= 1 ? 'not-allowed' : 'pointer',
               display: 'flex',
               alignItems: 'center'
@@ -692,7 +693,8 @@ const UniversityManagement = () => {
               borderRadius: '8px',
               border: '1px solid var(--glass-border)',
               background: 'var(--glass-bg)',
-              color: validCurrentPage <= 1 ? 'rgba(255,255,255,0.2)' : '#fff',
+              color: validCurrentPage <= 1 ? 'var(--text-secondary)' : 'var(--text-primary)',
+              opacity: validCurrentPage <= 1 ? 0.35 : 1,
               cursor: validCurrentPage <= 1 ? 'not-allowed' : 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -703,7 +705,7 @@ const UniversityManagement = () => {
             <ChevronLeft size={16} /> Prev
           </button>
 
-          <span style={{ padding: '0 0.5rem', fontWeight: 600, color: '#fff' }}>
+          <span style={{ padding: '0 0.5rem', fontWeight: 600, color: 'var(--text-primary)' }}>
             Page {validCurrentPage} of {totalPages}
           </span>
 
@@ -716,7 +718,8 @@ const UniversityManagement = () => {
               borderRadius: '8px',
               border: '1px solid var(--glass-border)',
               background: 'var(--glass-bg)',
-              color: validCurrentPage >= totalPages ? 'rgba(255,255,255,0.2)' : '#fff',
+              color: validCurrentPage >= totalPages ? 'var(--text-secondary)' : 'var(--text-primary)',
+              opacity: validCurrentPage >= totalPages ? 0.35 : 1,
               cursor: validCurrentPage >= totalPages ? 'not-allowed' : 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -736,7 +739,8 @@ const UniversityManagement = () => {
               borderRadius: '8px',
               border: '1px solid var(--glass-border)',
               background: 'var(--glass-bg)',
-              color: validCurrentPage >= totalPages ? 'rgba(255,255,255,0.2)' : '#fff',
+              color: validCurrentPage >= totalPages ? 'var(--text-secondary)' : 'var(--text-primary)',
+              opacity: validCurrentPage >= totalPages ? 0.35 : 1,
               cursor: validCurrentPage >= totalPages ? 'not-allowed' : 'pointer',
               display: 'flex',
               alignItems: 'center'

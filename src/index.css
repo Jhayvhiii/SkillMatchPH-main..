@@ -13,8 +13,8 @@
   --bg-deep: #0a0f1e;
   --accent-teal: #00f5ff;
   --accent-violet: #7000ff;
-  --text-primary: rgba(255, 255, 255, 0.95);
-  --text-secondary: rgba(255, 255, 255, 0.6);
+  --text-primary: #ffffff;
+  --text-secondary: rgba(255, 255, 255, 0.72);
   --glass-bg: rgba(255, 255, 255, 0.03);
   --glass-border: rgba(255, 255, 255, 0.08);
   --surface-solid: rgba(13, 13, 20, 0.98);
@@ -50,8 +50,8 @@
   --bg-deep: #e9eef6;
   --accent-teal: #087a8c;
   --accent-violet: #6d28d9;
-  --text-primary: rgba(15, 23, 42, 0.96);
-  --text-secondary: rgba(51, 65, 85, 0.76);
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
   --glass-bg: rgba(255, 255, 255, 0.9);
   --glass-border: rgba(100, 116, 139, 0.28);
   --surface-solid: rgba(255, 255, 255, 0.96);
@@ -154,6 +154,11 @@ body::before {
   color: var(--text-primary) !important;
 }
 
+:root[data-theme='light'] input::placeholder,
+:root[data-theme='light'] textarea::placeholder {
+  color: #64748b !important;
+}
+
 :root[data-theme='light'] select option { background: #ffffff !important; color: #0f172a !important; }
 :root[data-theme='light'] .tagline { color: var(--text-primary); }
 :root[data-theme='light'] .brand-name { background-image: linear-gradient(to right, var(--text-primary), var(--accent-teal)); }
@@ -170,6 +175,20 @@ body::before {
   -webkit-text-fill-color: var(--text-primary);
   box-shadow: 0 0 0 1000px #f1f5f9 inset;
   caret-color: var(--text-primary);
+}
+
+:root[data-theme='light'] .data-table th {
+  color: #334155 !important;
+  border-bottom: 1px solid rgba(100, 116, 139, 0.25) !important;
+}
+
+:root[data-theme='light'] .data-table td {
+  color: #0f172a !important;
+  border-bottom: 1px solid rgba(100, 116, 139, 0.15) !important;
+}
+
+:root[data-theme='light'] .data-table td strong {
+  color: #0f172a !important;
 }
 
 :root[data-theme='light'] .admin-sidebar,

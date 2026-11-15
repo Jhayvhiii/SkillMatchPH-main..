@@ -5,7 +5,8 @@ import {
   HardHat, Building, Scale, Microscope, Loader2, Server, Cpu, Bot, Pill, Activity,
   Radiation, TestTube, Wrench, Zap, Radio, Factory, FlaskConical, Calculator, Coins,
   Megaphone, Lightbulb, Utensils, GraduationCap, BookOpen, Dna, Palette, X,
-  MapPin, Globe, ExternalLink, Sparkles,
+  MapPin, Globe, ExternalLink, Sparkles, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
+  RefreshCw
 } from 'lucide-react';
 import useSWR from 'swr';
 import { supabase } from '../../lib/supabase';
@@ -93,11 +94,11 @@ const fetchPrograms = async () => {
 
 const CONTAINER_VARIANTS = {
   hidden: { opacity: 0 },
-  show: { opacity: 1, transition: { staggerChildren: 0.07 } },
+  show: { opacity: 1, transition: { staggerChildren: 0.05 } },
 };
 
 const CARD_VARIANTS = {
-  hidden: { opacity: 0, y: 20 },
+  hidden: { opacity: 0, y: 15 },
   show: { opacity: 1, y: 0 },
 };
 
@@ -225,8 +226,12 @@ const Programs = () => {
   const [selectedProgram, setSelectedProgram] = useState(null);
   const pinnedLocation = getSavedPinnedLocation(user?.id);
 
+  // Pagination states to prevent endless vertical scrolling
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(9);
+
   // SWR fetch with no revalidation on focus
-  const { data: programs, error, isLoading } = useSWR('programs_list', fetchPrograms, {
+  const { data: programs, error, isLoading, mutate } = useSWR('programs_list', fetchPrograms, {
     revalidateOnFocus: false,
   });
 
@@ -304,6 +309,24 @@ const Programs = () => {
     return filtered;
   }, [searchQuery, activeCategory, programs, recommendedCategories, hasRecommendations]);
 
+  // Reset to page 1 when search or category or pageSize changes
+  useMemo(() => {
+    setCurrentPage(1);
+  }, [searchQuery, activeCategory, pageSize]);
+
+  // Pagination slice calculations
+  const totalItems = filteredPrograms.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const validCurrentPage = Math.min(currentPage, totalPages);
+
+  const paginatedPrograms = useMemo(() => {
+    const startIndex = (validCurrentPage - 1) * pageSize;
+    return filteredPrograms.slice(startIndex, startIndex + pageSize);
+  }, [filteredPrograms, validCurrentPage, pageSize]);
+
+  const startIndex = totalItems === 0 ? 0 : (validCurrentPage - 1) * pageSize + 1;
+  const endIndex = Math.min(validCurrentPage * pageSize, totalItems);
+
   // Build a personalized label for the recommendation hint
   const recommendationLabel = useMemo(() => {
     const parts = [];
@@ -313,58 +336,112 @@ const Programs = () => {
   }, [profile?.shs_strand, hollandCode]);
 
   return (
-    <div className="student-page" style={{ padding: '2rem 0' }}>
+    <div className="student-page" style={{ maxWidth: '1280px', margin: '0 auto', padding: '2rem 0 3rem' }}>
 
       {/* Header */}
-      <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} style={{ marginBottom: '3rem' }}>
-        <h2 style={{ fontSize: 'clamp(2rem, 5vw, 2.5rem)', margin: 0, color: 'var(--text-primary)' }}>College Programs</h2>
-        <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem' }}>Explore potential career paths and degree programs.</p>
+      <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+        <div>
+          <h2 style={{ fontSize: 'clamp(2rem, 5vw, 2.5rem)', margin: 0, color: 'var(--text-primary)' }}>College Programs</h2>
+          <p style={{ color: 'var(--text-secondary)', marginTop: '0.4rem', fontSize: '0.95rem' }}>Explore potential career paths and degree programs in the Philippines.</p>
+        </div>
+        <button
+          onClick={() => mutate()}
+          className="refresh-btn"
+          title="Refresh programs"
+          style={{
+            padding: '0.65rem',
+            borderRadius: '12px',
+            border: '1px solid var(--glass-border)',
+            background: 'var(--glass-bg)',
+            color: 'var(--text-secondary)',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center'
+          }}
+        >
+          <RefreshCw size={18} className={isLoading ? 'animate-spin' : ''} />
+        </button>
       </motion.div>
 
-      {/* Search + Category Filters */}
+      {/* Search + Category Filters Container */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        style={{ marginBottom: '3rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}
+        className="glass-card"
+        style={{ padding: '1.25rem', borderRadius: '20px', marginBottom: '2rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}
       >
-        {/* Search */}
-        <div style={{ position: 'relative', maxWidth: '600px' }}>
-          <Search size={20} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
-          <input
-            id="program-search"
-            type="text"
-            placeholder="Search programs..."
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            aria-label="Search programs"
-            style={{
-              width: '100%', padding: '1rem 1rem 1rem 3rem',
-              borderRadius: '12px', border: '1px solid var(--glass-border)',
-              background: 'var(--glass-bg)', color: 'var(--text-primary)',
-              fontSize: '1rem', outline: 'none',
-              boxShadow: '0 4px 6px rgba(0,0,0,0.1)', boxSizing: 'border-box',
-            }}
-          />
+        {/* Search Bar + Page Size */}
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ position: 'relative', flex: 1, minWidth: '240px' }}>
+            <Search size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
+            <input
+              id="program-search"
+              type="text"
+              placeholder="Search programs by title or keywords..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              aria-label="Search programs"
+              style={{
+                width: '100%', padding: '0.75rem 2.5rem 0.75rem 2.8rem',
+                borderRadius: '12px', border: '1px solid var(--glass-border)',
+                background: 'var(--field-bg)', color: 'var(--text-primary)',
+                fontSize: '0.95rem', outline: 'none',
+                boxSizing: 'border-box',
+              }}
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex' }}
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: 'auto' }}>
+            <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>Show:</span>
+            <select
+              value={pageSize}
+              onChange={e => setPageSize(Number(e.target.value))}
+              style={{
+                padding: '0.55rem 0.75rem',
+                borderRadius: '10px',
+                border: '1px solid var(--glass-border)',
+                background: 'var(--field-bg)',
+                color: 'var(--text-primary)',
+                fontSize: '0.85rem',
+                outline: 'none',
+                cursor: 'pointer'
+              }}
+            >
+              <option value={6}>6 / page</option>
+              <option value={9}>9 / page</option>
+              <option value={15}>15 / page</option>
+              <option value={30}>30 / page</option>
+            </select>
+          </div>
         </div>
 
         {/* Recommendation hint */}
         {hasRecommendations && (
           <div style={{
             display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
-            padding: '0.5rem 1rem', borderRadius: '999px',
+            padding: '0.45rem 0.9rem', borderRadius: '999px',
             background: 'rgba(112, 0, 255, 0.08)',
             border: '1px solid rgba(112, 0, 255, 0.25)',
-            color: 'var(--accent-violet)', fontSize: '0.85rem', fontWeight: 500,
+            color: 'var(--accent-violet)', fontSize: '0.82rem', fontWeight: 600,
             width: 'fit-content',
           }}>
             <Sparkles size={14} />
-            {recommendationLabel} — highlighted categories are recommended for you
+            {recommendationLabel} — highlighted categories are personalized for your profile
           </div>
         )}
 
         {/* Category Pills */}
-        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
           {sortedCategories.map(category => {
             const isActive = activeCategory === category;
             const isRec = category !== 'All' && recommendedCategories.has(category);
@@ -373,7 +450,7 @@ const Programs = () => {
                 key={category}
                 onClick={() => setActiveCategory(category)}
                 style={{
-                  padding: '0.5rem 1rem',
+                  padding: '0.45rem 0.95rem',
                   borderRadius: '999px',
                   border: `1px solid ${
                     isActive ? 'var(--accent-teal)'
@@ -381,7 +458,7 @@ const Programs = () => {
                     :           'var(--glass-border)'
                   }`,
                   background: isActive
-                    ? 'rgba(0, 242, 254, 0.1)'
+                    ? 'rgba(0, 242, 254, 0.12)'
                     : isRec
                     ? 'rgba(112, 0, 255, 0.08)'
                     : 'var(--glass-bg)',
@@ -392,14 +469,14 @@ const Programs = () => {
                     : 'var(--text-secondary)',
                   cursor: 'pointer',
                   transition: 'all 0.2s ease',
-                  fontSize: '0.9rem',
+                  fontSize: '0.85rem',
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '0.35rem',
-                  fontWeight: isRec ? 600 : 400,
+                  fontWeight: isActive || isRec ? 600 : 400,
                 }}
               >
-                {isRec && <Sparkles size={12} />}
+                {isRec && <Sparkles size={11} />}
                 {category}
               </button>
             );
@@ -412,28 +489,33 @@ const Programs = () => {
         variants={CONTAINER_VARIANTS}
         initial="hidden"
         animate="show"
-        style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '2rem' }}
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+          gap: '1.5rem',
+          marginBottom: '2rem'
+        }}
       >
         <AnimatePresence mode="popLayout">
           {isLoading ? (
             <motion.div
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '4rem 0', color: 'var(--text-secondary)' }}
+              style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '5rem 0', color: 'var(--text-secondary)' }}
             >
               <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, ease: 'linear', duration: 1 }}>
-                <Loader2 size={48} color="var(--accent-teal)" />
+                <Loader2 size={40} color="var(--accent-teal)" />
               </motion.div>
-              <p style={{ marginTop: '1rem', fontSize: '1.2rem' }}>Loading programs...</p>
+              <p style={{ marginTop: '1rem', fontSize: '1.1rem' }}>Loading catalog programs...</p>
             </motion.div>
           ) : error ? (
             <motion.div
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '4rem 0' }}
             >
-              <p style={{ color: '#ff4d4d', fontSize: '1.2rem' }}>Failed to load programs. Please try again.</p>
+              <p style={{ color: '#ff4d4d', fontSize: '1.1rem' }}>Failed to load programs. Please try again.</p>
             </motion.div>
-          ) : filteredPrograms.length > 0 ? (
-            filteredPrograms.map(program => {
+          ) : paginatedPrograms.length > 0 ? (
+            paginatedPrograms.map(program => {
               const nearbyUnis = (program.universities || []).filter(u =>
                 calculateLocationProximity(pinnedLocation, u.location, u.name).isNearby
               );
@@ -447,25 +529,26 @@ const Programs = () => {
                   variants={CARD_VARIANTS}
                   initial="hidden"
                   animate="show"
-                  exit={{ opacity: 0, scale: 0.9 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
                   className="glass-card"
-                  whileHover={{ translateY: -5, borderColor: isRec ? 'var(--accent-violet)' : 'var(--accent-teal)' }}
+                  whileHover={{ translateY: -4, borderColor: isRec ? 'var(--accent-violet)' : 'var(--accent-teal)' }}
                   style={{
                     display: 'flex', flexDirection: 'column', gap: '1rem',
-                    ...(isRec ? { border: '1px solid rgba(112, 0, 255, 0.3)' } : {}),
+                    padding: '1.5rem', borderRadius: '18px',
+                    ...(isRec ? { border: '1px solid rgba(112, 0, 255, 0.35)' } : {}),
                   }}
                 >
                   {/* Card top row: icon + badges */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div style={{
-                      padding: '0.75rem', borderRadius: '12px',
+                      padding: '0.65rem', borderRadius: '12px',
                       background: isRec ? 'rgba(112, 0, 255, 0.1)' : 'rgba(0, 242, 254, 0.1)',
                       color: isRec ? 'var(--accent-violet)' : 'var(--accent-teal)',
                     }}>
-                      {ICON_MAP[program.icon_name] || <Code size={24} />}
+                      {ICON_MAP[program.icon_name] || <Code size={22} />}
                     </div>
 
-                    <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                    <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                       {/* "For You" badge */}
                       {isRec && (
                         <span style={{
@@ -488,7 +571,7 @@ const Programs = () => {
                       )}
                       {/* Category pill */}
                       <span style={{
-                        fontSize: '0.75rem', padding: '0.25rem 0.75rem', borderRadius: '999px',
+                        fontSize: '0.75rem', padding: '0.25rem 0.65rem', borderRadius: '999px',
                         background: 'var(--glass-border)', color: 'var(--text-secondary)',
                       }}>
                         {program.category}
@@ -498,25 +581,29 @@ const Programs = () => {
 
                   {/* Title + description */}
                   <div>
-                    <h3 style={{ fontSize: '1.25rem', marginBottom: '0.5rem', color: 'var(--text-primary)' }}>
+                    <h3 style={{ fontSize: '1.2rem', marginBottom: '0.4rem', color: 'var(--text-primary)' }}>
                       {program.title}
                     </h3>
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: 1.5, margin: 0 }}>
+                    <p style={{
+                      color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: 1.5, margin: 0,
+                      display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden'
+                    }}>
                       {program.description}
                     </p>
                   </div>
 
                   {/* View Details button */}
-                  <div style={{ marginTop: 'auto', paddingTop: '1rem' }}>
+                  <div style={{ marginTop: 'auto', paddingTop: '0.5rem' }}>
                     <motion.button
                       onClick={() => setSelectedProgram(program)}
-                      whileHover={{ backgroundColor: isRec ? 'var(--accent-violet)' : 'var(--accent-teal)', color: '#fff' }}
+                      whileHover={{ scale: 1.01 }}
                       aria-label={`View details for ${program.title}`}
                       style={{
-                        width: '100%', padding: '0.75rem', borderRadius: '8px',
-                        border: `1px solid ${isRec ? 'var(--accent-violet)' : 'var(--accent-violet)'}`,
-                        background: 'transparent', color: 'var(--text-primary)',
-                        cursor: 'pointer', transition: 'background-color 0.2s ease, color 0.2s ease',
+                        width: '100%', padding: '0.65rem', borderRadius: '10px',
+                        border: `1px solid ${isRec ? 'var(--accent-violet)' : 'var(--accent-teal)'}`,
+                        background: 'transparent', color: isRec ? 'var(--accent-violet)' : 'var(--accent-teal)',
+                        fontWeight: 600, fontSize: '0.88rem',
+                        cursor: 'pointer', transition: 'all 0.2s ease',
                       }}
                     >
                       View Details
@@ -528,13 +615,118 @@ const Programs = () => {
           ) : (
             <motion.div
               initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-              style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '4rem 0' }}
+              style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '4rem 0', color: 'var(--text-secondary)' }}
             >
-              <p style={{ color: 'var(--text-secondary)', fontSize: '1.2rem' }}>No programs found matching your criteria.</p>
+              <p style={{ margin: 0, fontSize: '1rem' }}>No programs found matching your search or selected category.</p>
             </motion.div>
           )}
         </AnimatePresence>
       </motion.div>
+
+      {/* ─── Compact Pagination Bar (Eliminates Scrolling) ───────────────────── */}
+      <div className="glass-card" style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: '0.85rem 1.25rem',
+        borderRadius: '16px',
+        fontSize: '0.85rem',
+        color: 'var(--text-secondary)',
+        flexWrap: 'wrap',
+        gap: '0.75rem'
+      }}>
+        <div>
+          Showing <strong style={{ color: 'var(--text-primary)' }}>{startIndex}</strong> – <strong style={{ color: 'var(--text-primary)' }}>{endIndex}</strong> of <strong style={{ color: 'var(--text-primary)' }}>{totalItems}</strong> programs
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+          <button
+            type="button"
+            onClick={() => setCurrentPage(1)}
+            disabled={validCurrentPage <= 1}
+            style={{
+              padding: '0.35rem 0.5rem',
+              borderRadius: '8px',
+              border: '1px solid var(--glass-border)',
+              background: 'var(--glass-bg)',
+              color: validCurrentPage <= 1 ? 'var(--text-secondary)' : 'var(--text-primary)',
+              opacity: validCurrentPage <= 1 ? 0.35 : 1,
+              cursor: validCurrentPage <= 1 ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center'
+            }}
+            title="First page"
+          >
+            <ChevronsLeft size={16} />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+            disabled={validCurrentPage <= 1}
+            style={{
+              padding: '0.35rem 0.65rem',
+              borderRadius: '8px',
+              border: '1px solid var(--glass-border)',
+              background: 'var(--glass-bg)',
+              color: validCurrentPage <= 1 ? 'var(--text-secondary)' : 'var(--text-primary)',
+              opacity: validCurrentPage <= 1 ? 0.35 : 1,
+              cursor: validCurrentPage <= 1 ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.2rem'
+            }}
+            title="Previous page"
+          >
+            <ChevronLeft size={16} /> Prev
+          </button>
+
+          <span style={{ padding: '0 0.5rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+            Page {validCurrentPage} of {totalPages}
+          </span>
+
+          <button
+            type="button"
+            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+            disabled={validCurrentPage >= totalPages}
+            style={{
+              padding: '0.35rem 0.65rem',
+              borderRadius: '8px',
+              border: '1px solid var(--glass-border)',
+              background: 'var(--glass-bg)',
+              color: validCurrentPage >= totalPages ? 'var(--text-secondary)' : 'var(--text-primary)',
+              opacity: validCurrentPage >= totalPages ? 0.35 : 1,
+              cursor: validCurrentPage >= totalPages ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.2rem'
+            }}
+            title="Next page"
+          >
+            Next <ChevronRight size={16} />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setCurrentPage(totalPages)}
+            disabled={validCurrentPage >= totalPages}
+            style={{
+              padding: '0.35rem 0.5rem',
+              borderRadius: '8px',
+              border: '1px solid var(--glass-border)',
+              background: 'var(--glass-bg)',
+              color: validCurrentPage >= totalPages ? 'var(--text-secondary)' : 'var(--text-primary)',
+              opacity: validCurrentPage >= totalPages ? 0.35 : 1,
+              cursor: validCurrentPage >= totalPages ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center'
+            }}
+            title="Last page"
+          >
+            <ChevronsRight size={16} />
+          </button>
+        </div>
+      </div>
 
       {/* Program Details Modal */}
       <AnimatePresence>
