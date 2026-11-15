@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Camera, CheckCircle2, Loader2, Save, Upload, X } from 'lucide-react';
+import { Camera, CheckCircle2, Eye, EyeOff, Loader2, Save, Upload, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 const STRANDS = {
@@ -24,6 +24,12 @@ const ProfileEditor = ({ user, profile, avatarUrl, onClose, onSaved }) => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const fileInput = useRef(null);
+
+  // Password change state
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   useEffect(() => () => {
     if (previewUrl?.startsWith('blob:')) URL.revokeObjectURL(previewUrl);

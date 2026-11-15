@@ -13,6 +13,7 @@ const INITIAL_FORM = {
   email: '',
   username: '',
   password: '',
+  confirmPassword: '',
   firstName: '',
   lastName: '',
   studentNo: '',
@@ -30,6 +31,7 @@ const AuthForm = ({ isLogin, toggleForm, showAdminRegistration, showAdminContact
   const [verificationError, setVerificationError] = useState('');
   const [resendStatus, setResendStatus] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [formData, setFormData] = useState(INITIAL_FORM);
 
   // Derived state — no useEffect needed (rerender-derived-state-no-effect)
@@ -64,6 +66,11 @@ const AuthForm = ({ isLogin, toggleForm, showAdminRegistration, showAdminContact
         }
         if (error) throw error;
       } else {
+        if (formData.password !== formData.confirmPassword) {
+          setError('Passwords do not match.');
+          setLoading(false);
+          return;
+        }
         const { data, error } = await signUp(formData.email, formData.password, {
           username: formData.username,
           firstName: formData.firstName,
@@ -286,17 +293,38 @@ const AuthForm = ({ isLogin, toggleForm, showAdminRegistration, showAdminContact
                 </button>
               </div>
 
+              {!isLogin ? (
+                <div className="input-group has-password-toggle full-width">
+                  <Lock className="input-icon" size={18} />
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    placeholder="Confirm Password"
+                    required
+                    value={formData.confirmPassword}
+                    onChange={handleChange('confirmPassword')}
+                  />
+                  <button
+                    type="button"
+                    className="password-visibility-toggle"
+                    onClick={() => setShowConfirmPassword((visible) => !visible)}
+                    aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                    aria-pressed={showConfirmPassword}
+                  >
+                    {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              ) : null}
+
               {error ? <p className="error-message full-width">{error}</p> : null}
               {isLogin ? (
                 <div className="form-footer">
                   <span className="password-help">
-                    Forgot your username or password?
                     <button
                       type="button"
                       className="password-help-link"
                       onClick={showAdminContact}
                     >
-                      Recover your account
+                      Forgot your username or password?
                     </button>
                   </span>
                 </div>

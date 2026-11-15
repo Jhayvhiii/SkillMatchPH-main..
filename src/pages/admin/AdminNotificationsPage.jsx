@@ -13,7 +13,6 @@ const FILTERS = [
   { key: 'student_profile_updated', label: 'Profile Updates', icon: <UserPen size={16} /> },
   { key: 'student_username_changed', label: 'Username Changes', icon: <AtSign size={16} /> },
   { key: 'student_password_changed', label: 'Password Changes', icon: <UserPen size={16} /> },
-  { key: 'admin_contact_requested', label: 'Contact Requests', icon: <MessageCircleQuestion size={16} /> },
 ];
 
 const formatChangedFields = (fields = []) => {

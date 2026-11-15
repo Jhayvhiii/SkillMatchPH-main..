@@ -3,9 +3,11 @@ import { AnimatePresence, motion } from 'framer-motion';
 import useSWR from 'swr';
 import {
   Activity, AlertCircle, BarChart3, BookOpen, BrainCircuit,
-  CalendarDays, CheckCircle2, ClipboardCheck, Eye, Loader2, RefreshCw, Search, Users, X
+  CalendarDays, CheckCircle2, ClipboardCheck, Eye, Loader2, RefreshCw, Search, Users, X,
+  Download, Send, Mail, Check, FileSpreadsheet
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../context/AuthContext';
 import { DOMAIN_METADATA, LIKERT_OPTIONS, matchPrograms, RIASEC_TRAITS } from '../../data/assessmentData';
 
 const EMPTY = [];
@@ -28,11 +30,31 @@ const formatDate = (date) => new Intl.DateTimeFormat('en-PH', {
   month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit'
 }).format(new Date(date));
 
-const StatCard = ({ Icon, label, value, note, color, index }) => <motion.div className="stat-card report-stat" initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.06 }}><div className="report-stat-icon" style={{ color, background: `color-mix(in srgb, ${color} 12%, transparent)` }}><Icon size={20} /></div><span>{label}</span><strong style={{ color }}>{value}</strong><small>{note}</small></motion.div>;
+const StatCard = ({ Icon, label, value, note, color, index }) => (
+  <motion.div className="stat-card report-stat" initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.06 }}>
+    <div className="report-stat-icon" style={{ color, background: `color-mix(in srgb, ${color} 12%, transparent)` }}>
+      <Icon size={20} />
+    </div>
+    <span>{label}</span>
+    <strong style={{ color }}>{value}</strong>
+    <small>{note}</small>
+  </motion.div>
+);
 
 const ProgressRow = ({ label, value, total, color = 'var(--accent-teal)', suffix = '' }) => {
   const percent = total ? Math.min(100, Math.round((value / total) * 100)) : 0;
-  return <div className="report-progress-row"><div><span>{label}</span><strong>{value}{suffix}</strong></div><div className="report-progress-track"><i style={{ width: `${suffix ? value : percent}%`, background: color }} /></div>{!suffix ? <small>{percent}%</small> : null}</div>;
+  return (
+    <div className="report-progress-row">
+      <div>
+        <span>{label}</span>
+        <strong>{value}{suffix}</strong>
+      </div>
+      <div className="report-progress-track">
+        <i style={{ width: `${suffix ? value : percent}%`, background: color }} />
+      </div>
+      {!suffix ? <small>{percent}%</small> : null}
+    </div>
+  );
 };
 
 const UserActivity = ({ profiles, registrationProfiles = profiles, attempts }) => {
@@ -41,7 +63,38 @@ const UserActivity = ({ profiles, registrationProfiles = profiles, attempts }) =
     ...registrationProfiles.map((profile) => ({ id: `joined-${profile.id}`, date: profile.created_at, type: 'Registration', Icon: Users, profile })),
     ...attempts.map((attempt) => ({ id: `attempt-${attempt.id}`, date: attempt.completed_at, type: 'Assessment completed', Icon: ClipboardCheck, profile: profileMap.get(attempt.user_id), code: attempt.result?.code })),
   ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 20);
-  return <div className="glass-card report-panel"><div className="report-panel-header"><div><h2>Recent user activity</h2><p>Latest registrations and assessment completions.</p></div><Activity size={20} /></div><div className="report-activity-list">{events.length ? events.map((event) => { const name = event.profile ? [event.profile.first_name, event.profile.last_name].filter(Boolean).join(' ') : 'Unknown student'; return <div className="report-activity-row" key={event.id}><div className="report-event-icon"><event.Icon size={17} /></div><div><strong>{name || 'Unnamed student'}</strong><span>{event.type}{event.code ? ` · Holland code ${event.code}` : ''}</span></div><time>{formatDate(event.date)}</time></div>; }) : <div className="report-empty">No user activity has been recorded.</div>}</div></div>;
+  return (
+    <div className="glass-card report-panel">
+      <div className="report-panel-header">
+        <div>
+          <h2>Recent user activity</h2>
+          <p>Latest registrations and assessment completions.</p>
+        </div>
+        <Activity size={20} />
+      </div>
+      <div className="report-activity-list">
+        {events.length ? (
+          events.map((event) => {
+            const name = event.profile ? [event.profile.first_name, event.profile.last_name].filter(Boolean).join(' ') : 'Unknown student';
+            return (
+              <div className="report-activity-row" key={event.id}>
+                <div className="report-event-icon">
+                  <event.Icon size={17} />
+                </div>
+                <div>
+                  <strong>{name || 'Unnamed student'}</strong>
+                  <span>{event.type}{event.code ? ` · Holland code ${event.code}` : ''}</span>
+                </div>
+                <time>{formatDate(event.date)}</time>
+              </div>
+            );
+          })
+        ) : (
+          <div className="report-empty">No user activity has been recorded.</div>
+        )}
+      </div>
+    </div>
+  );
 };
 
 const AssessmentSummary = ({ attempts, profiles, onViewAttempt }) => {
@@ -66,7 +119,96 @@ const AssessmentSummary = ({ attempts, profiles, onViewAttempt }) => {
     const searchable = [profile?.first_name, profile?.last_name, profile?.student_no, attempt.result?.code].filter(Boolean).join(' ').toLowerCase();
     return !normalizedSearch || searchable.includes(normalizedSearch);
   });
-  return <><div className="report-two-column"><div className="glass-card report-panel"><div className="report-panel-header"><div><h2>Assessment results summary</h2><p>Latest result per student to avoid duplicate weighting.</p></div><BrainCircuit size={20} /></div><div className="report-highlight"><strong>{completion}%</strong><span>completion rate</span><small>{latestByUser.size} of {profiles.length} students</small></div><h3>Average aptitude scores</h3>{Object.entries(aptitude).map(([key, total]) => <ProgressRow key={key} label={DOMAIN_METADATA[key].label} value={Math.round(total / divisor)} total={100} suffix="%" />)}</div><div className="glass-card report-panel"><div className="report-panel-header"><div><h2>Interest profile</h2><p>Average RIASEC scores and common Holland codes.</p></div><BarChart3 size={20} /></div><h3>Average interest scores</h3>{Object.entries(traits).map(([key, total]) => <ProgressRow key={key} label={`${key} · ${RIASEC_TRAITS[key].name}`} value={Math.round(total / divisor)} total={100} suffix="%" color={RIASEC_TRAITS[key].color} />)}<h3 className="report-subheading">Most common codes</h3><div className="report-code-list">{Object.entries(codes).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([code, count]) => <span key={code}><b>{code}</b>{count} student{count === 1 ? '' : 's'}</span>)}{Object.keys(codes).length === 0 ? <div className="report-empty">No completed results yet.</div> : null}</div></div></div><div className="glass-card report-panel report-student-results"><div className="report-panel-header"><div><h2>Student results</h2><p>Open a student’s latest assessment to review their summary and exact answers.</p></div><Users size={20} /></div>{latest.length ? <><div className="student-result-search"><Search size={18} /><input type="search" value={studentSearch} onChange={(event) => setStudentSearch(event.target.value)} placeholder="Search by name, student number, or Holland code…" aria-label="Search student assessment results" /></div>{filteredLatest.length ? <div className="student-result-table"><div className="student-result-head"><span>Student</span><span>Holland code</span><span>Completed</span><span></span></div>{filteredLatest.map((attempt) => { const profile = profileMap.get(attempt.user_id); const name = [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || 'Unknown student'; return <div className="student-result-row" key={attempt.id}><div><strong>{name}</strong><span>{profile?.student_no || 'No student number'}</span></div><b>{attempt.result?.code || '—'}</b><time>{formatDate(attempt.completed_at)}</time><button onClick={() => onViewAttempt({ attempt, profile })}><Eye size={16} /> View details</button></div>; })}</div> : <div className="report-empty">No student results match “{studentSearch}”.</div>}</> : <div className="report-empty">No completed assessments in this period.</div>}</div></>;
+  return (
+    <>
+      <div className="report-two-column">
+        <div className="glass-card report-panel">
+          <div className="report-panel-header">
+            <div>
+              <h2>Assessment results summary</h2>
+              <p>Latest result per student to avoid duplicate weighting.</p>
+            </div>
+            <BrainCircuit size={20} />
+          </div>
+          <div className="report-highlight">
+            <strong>{completion}%</strong>
+            <span>completion rate</span>
+            <small>{latestByUser.size} of {profiles.length} students</small>
+          </div>
+          <h3>Average aptitude scores</h3>
+          {Object.entries(aptitude).map(([key, total]) => (
+            <ProgressRow key={key} label={DOMAIN_METADATA[key].label} value={Math.round(total / divisor)} total={100} suffix="%" />
+          ))}
+        </div>
+        <div className="glass-card report-panel">
+          <div className="report-panel-header">
+            <div>
+              <h2>Interest profile</h2>
+              <p>Average RIASEC scores and common Holland codes.</p>
+            </div>
+            <BarChart3 size={20} />
+          </div>
+          <h3>Average interest scores</h3>
+          {Object.entries(traits).map(([key, total]) => (
+            <ProgressRow key={key} label={`${key} · ${RIASEC_TRAITS[key].name}`} value={Math.round(total / divisor)} total={100} suffix="%" color={RIASEC_TRAITS[key].color} />
+          ))}
+          <h3 className="report-subheading">Most common codes</h3>
+          <div className="report-code-list">
+            {Object.entries(codes).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([code, count]) => (
+              <span key={code}><b>{code}</b>{count} student{count === 1 ? '' : 's'}</span>
+            ))}
+            {Object.keys(codes).length === 0 ? <div className="report-empty">No completed results yet.</div> : null}
+          </div>
+        </div>
+      </div>
+      <div className="glass-card report-panel report-student-results">
+        <div className="report-panel-header">
+          <div>
+            <h2>Student results</h2>
+            <p>Open a student’s latest assessment to review their summary and exact answers.</p>
+          </div>
+          <Users size={20} />
+        </div>
+        {latest.length ? (
+          <>
+            <div className="student-result-search">
+              <Search size={18} />
+              <input type="search" value={studentSearch} onChange={(event) => setStudentSearch(event.target.value)} placeholder="Search by name, student number, or Holland code…" aria-label="Search student assessment results" />
+            </div>
+            {filteredLatest.length ? (
+              <div className="student-result-table">
+                <div className="student-result-head">
+                  <span>Student</span>
+                  <span>Holland code</span>
+                  <span>Completed</span>
+                  <span></span>
+                </div>
+                {filteredLatest.map((attempt) => {
+                  const profile = profileMap.get(attempt.user_id);
+                  const name = [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || 'Unknown student';
+                  return (
+                    <div className="student-result-row" key={attempt.id}>
+                      <div>
+                        <strong>{name}</strong>
+                        <span>{profile?.student_no || 'No student number'}</span>
+                      </div>
+                      <b>{attempt.result?.code || '—'}</b>
+                      <time>{formatDate(attempt.completed_at)}</time>
+                      <button onClick={() => onViewAttempt({ attempt, profile })}><Eye size={16} /> View details</button>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="report-empty">No student results match “{studentSearch}”.</div>
+            )}
+          </>
+        ) : (
+          <div className="report-empty">No completed assessments in this period.</div>
+        )}
+      </div>
+    </>
+  );
 };
 
 const StudentAssessmentModal = ({ selection, questions, onClose }) => {
@@ -75,7 +217,75 @@ const StudentAssessmentModal = ({ selection, questions, onClose }) => {
   const interestQuestions = versionQuestions.filter((question) => question.section === 'interest');
   const aptitudeQuestions = versionQuestions.filter((question) => question.section === 'aptitude');
   const name = [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || 'Unknown student';
-  return <motion.div className="modal-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}><motion.div className="glass-card report-detail-modal" initial={{ y: 20, scale: 0.97 }} animate={{ y: 0, scale: 1 }} exit={{ y: 20, scale: 0.97 }} onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={`${name} assessment details`}><div className="report-detail-header"><div><span>Student assessment</span><h2>{name}</h2><p>{profile?.student_no || 'No student number'} · Completed {formatDate(attempt.completed_at)}</p></div><button className="icon-btn" onClick={onClose} aria-label="Close assessment details"><X size={20} /></button></div><div className="report-detail-summary"><div><span>Holland code</span><strong>{attempt.result?.code || '—'}</strong></div>{Object.entries(attempt.result?.aptitude || {}).map(([domain, score]) => <div key={domain}><span>{DOMAIN_METADATA[domain]?.label || domain}</span><strong>{score}%</strong></div>)}</div><section className="answer-section"><h3>Interest answers</h3><p>Responses use the five-point agreement scale.</p><div className="answer-list">{interestQuestions.map((question) => { const value = Number(attempt.interest_answers?.[question.id]); const answer = LIKERT_OPTIONS.find((option) => option.v === value); return <div className="answer-row" key={question.id}><span>{question.sequence}</span><div><strong>{question.prompt}</strong><small>{question.riasec_letter} · {RIASEC_TRAITS[question.riasec_letter]?.name}</small></div><b>{value || '—'} · {answer?.label || 'No answer'}</b></div>; })}</div></section><section className="answer-section"><h3>Aptitude answers</h3><p>The selected option is compared with the stored answer key.</p><div className="answer-list">{aptitudeQuestions.map((question) => { const selectedIndex = Number(attempt.aptitude_answers?.[question.id]); const hasAnswer = Number.isInteger(selectedIndex) && selectedIndex >= 0; const correct = hasAnswer && selectedIndex === question.correct_option_index; return <div className={`answer-row aptitude-answer ${correct ? 'correct' : 'incorrect'}`} key={question.id}><span>{question.sequence}</span><div><strong>{question.prompt}</strong><small>{DOMAIN_METADATA[question.aptitude_domain]?.label || question.aptitude_domain}</small><p>Selected: {hasAnswer ? question.options?.[selectedIndex] : 'No answer'}</p>{!correct ? <p>Correct: {question.options?.[question.correct_option_index]}</p> : null}</div><b>{correct ? 'Correct' : 'Incorrect'}</b></div>; })}</div></section></motion.div></motion.div>;
+  return (
+    <motion.div className="modal-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
+      <motion.div className="glass-card report-detail-modal" initial={{ y: 20, scale: 0.97 }} animate={{ y: 0, scale: 1 }} exit={{ y: 20, scale: 0.97 }} onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={`${name} assessment details`}>
+        <div className="report-detail-header">
+          <div>
+            <span>Student assessment</span>
+            <h2>{name}</h2>
+            <p>{profile?.student_no || 'No student number'} · Completed {formatDate(attempt.completed_at)}</p>
+          </div>
+          <button className="icon-btn" onClick={onClose} aria-label="Close assessment details"><X size={20} /></button>
+        </div>
+        <div className="report-detail-summary">
+          <div>
+            <span>Holland code</span>
+            <strong>{attempt.result?.code || '—'}</strong>
+          </div>
+          {Object.entries(attempt.result?.aptitude || {}).map(([domain, score]) => (
+            <div key={domain}>
+              <span>{DOMAIN_METADATA[domain]?.label || domain}</span>
+              <strong>{score}%</strong>
+            </div>
+          ))}
+        </div>
+        <section className="answer-section">
+          <h3>Interest answers</h3>
+          <p>Responses use the five-point agreement scale.</p>
+          <div className="answer-list">
+            {interestQuestions.map((question) => {
+              const value = Number(attempt.interest_answers?.[question.id]);
+              const answer = LIKERT_OPTIONS.find((option) => option.v === value);
+              return (
+                <div className="answer-row" key={question.id}>
+                  <span>{question.sequence}</span>
+                  <div>
+                    <strong>{question.prompt}</strong>
+                    <small>{question.riasec_letter} · {RIASEC_TRAITS[question.riasec_letter]?.name}</small>
+                  </div>
+                  <b>{value || '—'} · {answer?.label || 'No answer'}</b>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+        <section className="answer-section">
+          <h3>Aptitude answers</h3>
+          <p>The selected option is compared with the stored answer key.</p>
+          <div className="answer-list">
+            {aptitudeQuestions.map((question) => {
+              const selectedIndex = Number(attempt.aptitude_answers?.[question.id]);
+              const hasAnswer = Number.isInteger(selectedIndex) && selectedIndex >= 0;
+              const correct = hasAnswer && selectedIndex === question.correct_option_index;
+              return (
+                <div className={`answer-row aptitude-answer ${correct ? 'correct' : 'incorrect'}`} key={question.id}>
+                  <span>{question.sequence}</span>
+                  <div>
+                    <strong>{question.prompt}</strong>
+                    <small>{DOMAIN_METADATA[question.aptitude_domain]?.label || question.aptitude_domain}</small>
+                    <p>Selected: {hasAnswer ? question.options?.[selectedIndex] : 'No answer'}</p>
+                    {!correct ? <p>Correct: {question.options?.[question.correct_option_index]}</p> : null}
+                  </div>
+                  <b>{correct ? 'Correct' : 'Incorrect'}</b>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      </motion.div>
+    </motion.div>
+  );
 };
 
 const ProgramPopularity = ({ attempts, programs }) => {
@@ -93,24 +303,415 @@ const ProgramPopularity = ({ attempts, programs }) => {
     return [...counts.values()].filter((item) => item.count > 0).map((item) => ({ ...item, averageMatch: Math.round(item.totalMatch / item.count) })).sort((a, b) => b.count - a.count || b.averageMatch - a.averageMatch);
   }, [attempts, programs]);
   const maximum = ranking[0]?.count || 0;
-  return <div className="glass-card report-panel"><div className="report-panel-header"><div><h2>Program popularity</h2><p>Programs ranked by appearances in students’ top three assessment matches.</p></div><BookOpen size={20} /></div>{ranking.length ? <div className="report-program-table"><div className="report-program-head"><span>Rank</span><span>Program</span><span>Top matches</span><span>Avg. match</span></div>{ranking.map((program, index) => <div className="report-program-row" key={program.id}><b>#{index + 1}</b><div><strong>{program.title}</strong><span>{program.category}</span><i><em style={{ width: `${(program.count / maximum) * 100}%` }} /></i></div><strong>{program.count}</strong><strong>{program.averageMatch}%</strong></div>)}</div> : <div className="report-empty">Complete assessment results are needed to rank programs.</div>}</div>;
+  return (
+    <div className="glass-card report-panel">
+      <div className="report-panel-header">
+        <div>
+          <h2>Program popularity</h2>
+          <p>Programs ranked by appearances in students’ top three assessment matches.</p>
+        </div>
+        <BookOpen size={20} />
+      </div>
+      {ranking.length ? (
+        <div className="report-program-table">
+          <div className="report-program-head">
+            <span>Rank</span>
+            <span>Program</span>
+            <span>Top matches</span>
+            <span>Avg. match</span>
+          </div>
+          {ranking.map((program, index) => (
+            <div className="report-program-row" key={program.id}>
+              <b>#{index + 1}</b>
+              <div>
+                <strong>{program.title}</strong>
+                <span>{program.category}</span>
+                <i><em style={{ width: `${(program.count / maximum) * 100}%` }} /></i>
+              </div>
+              <strong>{program.count}</strong>
+              <strong>{program.averageMatch}%</strong>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="report-empty">Complete assessment results are needed to rank programs.</div>
+      )}
+    </div>
+  );
 };
 
+// ─── Generate & Send Report Modal ─────────────────────────────────────────────
+const GenerateReportModal = ({ user, profiles, attempts, programs, onClose }) => {
+  const [targetEmail, setTargetEmail] = useState(user?.email || '');
+  const [includeAssessment, setIncludeAssessment] = useState(true);
+  const [includePrograms, setIncludePrograms] = useState(true);
+  const [isExporting, setIsExporting] = useState(false);
+  const [statusMessage, setStatusMessage] = useState(null);
+
+  // Generate CSV data from current report state
+  const buildCsvContent = () => {
+    const profileMap = new Map(profiles.map(p => [p.id, p]));
+    const latestAttempts = new Map();
+    attempts.forEach(a => {
+      if (!latestAttempts.has(a.user_id)) latestAttempts.set(a.user_id, a);
+    });
+
+    const rows = [
+      ['Student Name', 'Student No.', 'Account Status', 'Registered Date', 'Holland Code', 'Assessment Completed Date']
+    ];
+
+    profiles.forEach(p => {
+      const att = latestAttempts.get(p.id);
+      rows.push([
+        `"${p.first_name || ''} ${p.last_name || ''}"`.trim(),
+        `"${p.student_no || 'N/A'}"`,
+        p.status || 'pending',
+        p.created_at ? new Date(p.created_at).toLocaleDateString() : 'N/A',
+        att?.result?.code || 'Not Taken',
+        att?.completed_at ? new Date(att.completed_at).toLocaleDateString() : 'N/A'
+      ]);
+    });
+
+    return rows.map(r => r.join(',')).join('\n');
+  };
+
+  const handleDownloadFile = () => {
+    const csv = buildCsvContent();
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `SkillMatchPH_Report_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleSendToEmail = async (e) => {
+    e.preventDefault();
+    setIsExporting(true);
+    setStatusMessage(null);
+
+    // 1. Immediately trigger client download of the generated file
+    handleDownloadFile();
+
+    // 2. Prepare client-side mailto draft to logged in email with summary & notification
+    const totalStudents = profiles.length;
+    const completedCount = new Set(attempts.map(a => a.user_id)).size;
+    const subject = encodeURIComponent(`SkillMatchPH Analytics Report (${new Date().toLocaleDateString()})`);
+    const body = encodeURIComponent(
+      `Hello Admin,\n\nHere is your generated SkillMatchPH report summary:\n\n` +
+      `• Total Registered Students: ${totalStudents}\n` +
+      `• Completed Assessments: ${completedCount}\n` +
+      `• Report Generated For: ${targetEmail}\n` +
+      `• Generated On: ${new Date().toLocaleString()}\n\n` +
+      `The detailed CSV data file has been generated and downloaded to your device.\n\nBest regards,\nSkillMatchPH System`
+    );
+
+    // Open mail client draft addressed to the logged-in email
+    const mailtoUrl = `mailto:${encodeURIComponent(targetEmail)}?subject=${subject}&body=${body}`;
+    window.open(mailtoUrl, '_blank');
+
+    setStatusMessage({
+      type: 'success',
+      text: `Report file generated and downloaded! Email draft opened for ${targetEmail}.`
+    });
+    setIsExporting(false);
+  };
+
+  return (
+    <motion.div
+      className="modal-overlay"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.65)',
+        backdropFilter: 'blur(8px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 2000,
+        padding: '1rem'
+      }}
+    >
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0, y: 15 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.95, opacity: 0, y: 15 }}
+        onClick={(e) => e.stopPropagation()}
+        className="glass-card modal-content"
+        style={{ width: '100%', maxWidth: '520px', padding: '2rem', borderRadius: '20px' }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <div style={{
+              width: '40px',
+              height: '40px',
+              borderRadius: '10px',
+              background: 'rgba(0, 242, 254, 0.1)',
+              color: 'var(--accent-teal)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <FileSpreadsheet size={22} />
+            </div>
+            <div>
+              <h2 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 700 }}>Generate Report File</h2>
+              <p style={{ margin: '0.2rem 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                Send student analytics & assessment records to email
+              </p>
+            </div>
+          </div>
+          <button type="button" onClick={onClose} className="icon-btn" aria-label="Close modal">
+            <X size={18} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSendToEmail} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <div>
+            <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '0.4rem', fontWeight: 600 }}>
+              Recipient Email (Logged in account)
+            </label>
+            <div style={{ position: 'relative' }}>
+              <Mail size={16} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
+              <input
+                type="email"
+                required
+                value={targetEmail}
+                onChange={(e) => setTargetEmail(e.target.value)}
+                placeholder="admin@school.edu.ph"
+                style={{
+                  width: '100%',
+                  padding: '0.75rem 1rem 0.75rem 2.6rem',
+                  borderRadius: '10px',
+                  background: 'rgba(0,0,0,0.25)',
+                  border: '1px solid var(--glass-border)',
+                  color: '#fff',
+                  fontSize: '0.9rem',
+                  outline: 'none',
+                  boxSizing: 'border-box'
+                }}
+              />
+            </div>
+            <small style={{ color: 'var(--text-secondary)', fontSize: '0.78rem', display: 'block', marginTop: '0.35rem' }}>
+              Defaults to your active logged in email ({user?.email || 'N/A'}).
+            </small>
+          </div>
+
+          <div style={{
+            background: 'rgba(255,255,255,0.02)',
+            border: '1px solid var(--glass-border)',
+            borderRadius: '12px',
+            padding: '1rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.65rem'
+          }}>
+            <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Include in Report File:</span>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', cursor: 'pointer' }}>
+              <input type="checkbox" checked={includeAssessment} onChange={e => setIncludeAssessment(e.target.checked)} style={{ accentColor: 'var(--accent-teal)' }} />
+              Student assessment results & Holland Code breakdown ({attempts.length} attempts)
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', cursor: 'pointer' }}>
+              <input type="checkbox" checked={includePrograms} onChange={e => setIncludePrograms(e.target.checked)} style={{ accentColor: 'var(--accent-teal)' }} />
+              Registered student records & profile details ({profiles.length} students)
+            </label>
+          </div>
+
+          {statusMessage && (
+            <div style={{
+              padding: '0.75rem 1rem',
+              borderRadius: '10px',
+              background: statusMessage.type === 'success' ? 'rgba(74, 222, 128, 0.1)' : 'rgba(255, 77, 77, 0.1)',
+              border: `1px solid ${statusMessage.type === 'success' ? 'rgba(74, 222, 128, 0.3)' : 'rgba(255, 77, 77, 0.3)'}`,
+              color: statusMessage.type === 'success' ? '#4ade80' : '#ff4d4d',
+              fontSize: '0.85rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}>
+              <Check size={16} /> {statusMessage.text}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', marginTop: '0.5rem' }}>
+            <button
+              type="button"
+              onClick={handleDownloadFile}
+              className="icon-btn"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                width: 'auto',
+                padding: '0.65rem 1rem',
+                borderRadius: '10px',
+                border: '1px solid var(--glass-border)'
+              }}
+              title="Download direct CSV file immediately"
+            >
+              <Download size={15} /> Save CSV
+            </button>
+
+            <div style={{ display: 'flex', gap: '0.6rem' }}>
+              <button type="button" onClick={onClose} className="cancel-btn">
+                Close
+              </button>
+              <button
+                type="submit"
+                disabled={isExporting}
+                className="submit-btn"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  padding: '0.65rem 1.25rem',
+                  fontSize: '0.88rem',
+                  fontWeight: 700,
+                  margin: 0
+                }}
+              >
+                {isExporting ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
+                Generate & Send
+              </button>
+            </div>
+          </div>
+        </form>
+      </motion.div>
+    </motion.div>
+  );
+};
+
+// ─── Main Export Component ───────────────────────────────────────────────────
 export default function Reports() {
+  const { user } = useAuth();
   const { data, error, isLoading, mutate } = useSWR('admin-reports', fetchReports);
   const [tab, setTab] = useState('activity');
   const [period, setPeriod] = useState('all');
   const [selectedAttempt, setSelectedAttempt] = useState(null);
+  const [showGenerateModal, setShowGenerateModal] = useState(false);
+
   const cutoff = period === 'all' ? null : Date.now() - Number(period) * 86400000;
   const allProfiles = data?.profiles || EMPTY;
   const profiles = allProfiles.filter((profile) => !cutoff || new Date(profile.created_at).getTime() >= cutoff);
   const attempts = (data?.attempts || EMPTY).filter((attempt) => !cutoff || new Date(attempt.completed_at).getTime() >= cutoff);
   const uniqueCompleted = new Set(attempts.map((attempt) => attempt.user_id)).size;
   const approved = profiles.filter((profile) => profile.status === 'approved').length;
+
   const stats = [
     { Icon: Users, label: 'Student registrations', value: profiles.length, note: period === 'all' ? 'All recorded students' : `Within the last ${period} days`, color: 'var(--accent-teal)' },
     { Icon: CheckCircle2, label: 'Approved students', value: approved, note: `${profiles.length ? Math.round((approved / profiles.length) * 100) : 0}% of registrations`, color: 'var(--success)' },
     { Icon: ClipboardCheck, label: 'Assessment takers', value: uniqueCompleted, note: `${attempts.length} total completions`, color: 'var(--accent-violet)' },
   ];
-  return <div className="admin-page reports-page"><header className="page-header"><div><h1>Reports</h1><p>Monitor platform activity, assessment outcomes, and program demand.</p></div><button className="refresh-btn" onClick={() => mutate()} aria-label="Refresh reports"><RefreshCw size={18} className={isLoading ? 'animate-spin' : ''} /></button></header><div className="reports-controls"><div className="assessment-tabs" role="tablist">{[['activity', Activity, 'User activity'], ['assessment', BrainCircuit, 'Assessment summary'], ['programs', BookOpen, 'Program popularity']].map(([key, Icon, label]) => <button key={key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}><Icon size={17} />{label}</button>)}</div><label><CalendarDays size={16} /><select value={period} onChange={(event) => setPeriod(event.target.value)}><option value="all">All time</option><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="90">Last 90 days</option></select></label></div>{error ? <div className="assessment-error glass-card"><AlertCircle size={18} /> Could not load reports: {error.message}</div> : isLoading ? <div className="assessment-loading"><Loader2 className="animate-spin" /> Loading reports…</div> : <><div className="reports-stats">{stats.map((stat, index) => <StatCard key={stat.label} {...stat} index={index} />)}</div>{tab === 'activity' ? <UserActivity profiles={allProfiles} registrationProfiles={profiles} attempts={attempts} /> : tab === 'assessment' ? <AssessmentSummary profiles={allProfiles} attempts={attempts} onViewAttempt={setSelectedAttempt} /> : <ProgramPopularity programs={data?.programs || EMPTY} attempts={attempts} />}</>}<AnimatePresence>{selectedAttempt ? <StudentAssessmentModal selection={selectedAttempt} questions={data?.questions || EMPTY} onClose={() => setSelectedAttempt(null)} /> : null}</AnimatePresence></div>;
+
+  return (
+    <div className="admin-page reports-page">
+      <header className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+        <div>
+          <h1 style={{ margin: 0 }}>Reports</h1>
+          <p style={{ margin: '0.35rem 0 0', color: 'var(--text-secondary)' }}>
+            Monitor platform activity, assessment outcomes, and program demand.
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          <button className="refresh-btn" onClick={() => mutate()} aria-label="Refresh reports">
+            <RefreshCw size={18} className={isLoading ? 'animate-spin' : ''} />
+          </button>
+          <button
+            onClick={() => setShowGenerateModal(true)}
+            className="submit-btn"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              margin: 0,
+              padding: '0.65rem 1.25rem',
+              fontSize: '0.88rem',
+              fontWeight: 700,
+              background: 'linear-gradient(135deg, var(--accent-teal) 0%, var(--accent-violet) 100%)',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '12px',
+              boxShadow: '0 4px 14px rgba(0, 242, 254, 0.25)',
+              cursor: 'pointer'
+            }}
+          >
+            <FileSpreadsheet size={17} /> Generate Reports
+          </button>
+        </div>
+      </header>
+
+      <div className="reports-controls">
+        <div className="assessment-tabs" role="tablist">
+          {[['activity', Activity, 'User activity'], ['assessment', BrainCircuit, 'Assessment summary'], ['programs', BookOpen, 'Program popularity']].map(([key, Icon, label]) => (
+            <button key={key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>
+              <Icon size={17} />{label}
+            </button>
+          ))}
+        </div>
+        <label>
+          <CalendarDays size={16} />
+          <select value={period} onChange={(event) => setPeriod(event.target.value)}>
+            <option value="all">All time</option>
+            <option value="7">Last 7 days</option>
+            <option value="30">Last 30 days</option>
+            <option value="90">Last 90 days</option>
+          </select>
+        </label>
+      </div>
+
+      {error ? (
+        <div className="assessment-error glass-card">
+          <AlertCircle size={18} /> Could not load reports: {error.message}
+        </div>
+      ) : isLoading ? (
+        <div className="assessment-loading">
+          <Loader2 className="animate-spin" /> Loading reports…
+        </div>
+      ) : (
+        <>
+          <div className="reports-stats">
+            {stats.map((stat, index) => (
+              <StatCard key={stat.label} {...stat} index={index} />
+            ))}
+          </div>
+          {tab === 'activity' ? (
+            <UserActivity profiles={allProfiles} registrationProfiles={profiles} attempts={attempts} />
+          ) : tab === 'assessment' ? (
+            <AssessmentSummary profiles={allProfiles} attempts={attempts} onViewAttempt={setSelectedAttempt} />
+          ) : (
+            <ProgramPopularity programs={data?.programs || EMPTY} attempts={attempts} />
+          )}
+        </>
+      )}
+
+      {/* View attempt detail modal */}
+      <AnimatePresence>
+        {selectedAttempt ? (
+          <StudentAssessmentModal selection={selectedAttempt} questions={data?.questions || EMPTY} onClose={() => setSelectedAttempt(null)} />
+        ) : null}
+      </AnimatePresence>
+
+      {/* Generate & Send Report to Email Modal */}
+      <AnimatePresence>
+        {showGenerateModal ? (
+          <GenerateReportModal
+            user={user}
+            profiles={allProfiles}
+            attempts={data?.attempts || EMPTY}
+            programs={data?.programs || EMPTY}
+            onClose={() => setShowGenerateModal(false)}
+          />
+        ) : null}
+      </AnimatePresence>
+    </div>
+  );
 }

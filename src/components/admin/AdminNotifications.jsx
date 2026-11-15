@@ -196,10 +196,6 @@ const AdminNotifications = () => {
               })
             )}
           </div>
-
-          <Link to="/admin/requests" className="notification-footer" onClick={() => setOpen(false)}>
-            View contact requests
-          </Link>
         </section>
       ) : null}
     </div>

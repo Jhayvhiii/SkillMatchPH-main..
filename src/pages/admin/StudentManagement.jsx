@@ -1,40 +1,9 @@
-import { useCallback, useEffect, useRef, useState, useDeferredValue, memo, useMemo, forwardRef } from 'react';
+import { useCallback, useEffect, useRef, useState, useDeferredValue, memo, useMemo } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Search, Edit, Trash2, RefreshCw, X, Save, Loader, KeyRound, Eye, EyeOff } from 'lucide-react';
+import { Search, RefreshCw, X, Loader, Check, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Users, Clock, CheckCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useAuth } from '../../context/AuthContext';
 import useSWR from 'swr';
 import { useLocation, useSearchParams } from 'react-router-dom';
-import MenuSelect from '../../components/common/MenuSelect';
-
-// ─── Module-level constants (rendering-hoist-jsx) ────────────────────────────
-const EDIT_FIELDS = [
-  { key: 'username', label: 'Login Username', type: 'text', isUsername: true },
-  { key: 'first_name', label: 'First Name', type: 'text' },
-  { key: 'last_name', label: 'Last Name', type: 'text' },
-  { key: 'student_no', label: 'Student No.', type: 'text' },
-  { key: 'grade_level', label: 'Grade Level', type: 'number' },
-  { key: 'shs_track', label: 'SHS Track', type: 'text' },
-  { key: 'shs_strand', label: 'SHS Strand', type: 'text' },
-  {
-    key: 'status',
-    label: 'Status',
-    type: 'select',
-    options: ['pending', 'approved', 'rejected'],
-  },
-];
-
-const MODAL_OVERLAY_STYLE = {
-  position: 'fixed',
-  inset: 0,
-  background: 'rgba(0,0,0,0.6)',
-  backdropFilter: 'blur(8px)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  zIndex: 2000,
-  padding: '1rem',
-};
 
 // ─── Fetcher (client-swr-dedup) ──────────────────────────────────────────────
 const fetchStudents = async () => {
@@ -48,372 +17,60 @@ const fetchStudents = async () => {
   return data || [];
 };
 
-// ─── Sub-components (rerender-no-inline-components) ──────────────────────────
-
-const EditModal = memo(forwardRef(({ student, onClose, onSave }, ref) => {
-  const [form, setForm] = useState(() =>
-    EDIT_FIELDS.reduce((acc, { key }) => {
-      acc[key] = student[key] ?? '';
-      return acc;
-    }, {})
-  );
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState(null);
-  const firstInputRef = useRef(null);
-
-  useEffect(() => { firstInputRef.current?.focus(); }, []);
-
-  useEffect(() => {
-    const handleKey = (e) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [onClose]);
-
-  const handleChange = useCallback((key, value) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
-  }, []);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setSaving(true);
-    setError(null);
-    try {
-      const normalizedUsername = form.username.trim().toLowerCase();
-      if (normalizedUsername !== student.username) {
-        const { error: usernameError } = await supabase.rpc('update_student_username', {
-          target_student_id: student.id,
-          requested_username: normalizedUsername,
-        });
-        if (usernameError) throw usernameError;
-      }
-
-      // Admin can only edit status here (username handled above); other
-      // profile fields are read-only in this modal.
-      const { error: dbError } = await supabase
-        .from('profiles')
-        .update({ status: form.status })
-        .eq('id', student.id);
-
-      if (dbError) throw dbError;
-      onSave({ ...student, status: form.status, username: normalizedUsername });
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
+// ─── Search Bar ─────────────────────────────────────────────────────────────
+const SearchBar = memo(({ value, onChange, inputRef }) => {
   return (
-    <div ref={ref} style={MODAL_OVERLAY_STYLE} onClick={onClose} role="dialog" aria-modal="true" aria-label="Edit student">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        transition={{ duration: 0.2, ease: 'easeOut' }}
-        onClick={(e) => e.stopPropagation()}
-        className="glass-card modal-content"
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-          <div>
-            <h2 style={{ margin: 0, fontSize: '1.75rem', fontWeight: 700 }}>Edit Student</h2>
-            <p style={{ margin: '0.4rem 0 0', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-              Update profile for {student.first_name} {student.last_name}
-            </p>
-          </div>
-          <button type="button" onClick={onClose} className="icon-btn" aria-label="Close modal">
-            <X size={20} />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="modal-form-grid">
-          {EDIT_FIELDS.map(({ key, label, type, options, isUsername }, idx) => {
-            const editable = key === 'username' || key === 'status';
-            const readOnly = !editable;
-            return (
-              <div key={key} style={{ gridColumn: type === 'select' ? '1 / -1' : 'auto' }} className="form-group">
-                <label htmlFor={`edit-${key}`}>{label}</label>
-                {type === 'select' ? (
-                  <MenuSelect
-                    id={`edit-${key}`}
-                    label={label}
-                    value={form[key]}
-                    onChange={(value) => handleChange(key, value)}
-                    options={options.map((opt) => ({ value: opt, label: opt.charAt(0).toUpperCase() + opt.slice(1) }))}
-                  />
-                ) : (
-                  <input
-                    ref={idx === 0 ? firstInputRef : null}
-                    id={`edit-${key}`}
-                    type={type}
-                    value={form[key]}
-                    required={editable}
-                    readOnly={readOnly}
-                    disabled={readOnly}
-                    tabIndex={readOnly ? -1 : undefined}
-                    className={readOnly ? 'readonly-field' : undefined}
-                    minLength={isUsername ? 3 : undefined}
-                    maxLength={isUsername ? 30 : undefined}
-                    pattern={isUsername ? '[A-Za-z0-9][A-Za-z0-9._-]{2,29}' : undefined}
-                    onChange={(e) => handleChange(key, e.target.value)}
-                  />
-                )}
-              </div>
-            );
-          })}
-
-          {error && (
-            <p style={{ gridColumn: '1 / -1', margin: 0, color: '#ff4d4d', fontSize: '0.85rem', background: 'rgba(255, 77, 77, 0.1)', padding: '0.75rem', borderRadius: '8px' }}>
-              {error}
-            </p>
-          )}
-
-          <div className="modal-footer" style={{ gridColumn: '1 / -1' }}>
-            <button type="button" onClick={onClose} className="cancel-btn">Cancel</button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="submit-btn"
-            >
-              {saving ? <Loader size={18} className="animate-spin" /> : <Save size={18} />}
-              {saving ? 'Saving…' : 'Save Changes'}
-            </button>
-          </div>
-        </form>
-      </motion.div>
-    </div>
-  );
-}));
-
-const DeleteConfirmationModal = memo(forwardRef(({ student, onClose, onConfirm, isDeleting }, ref) => {
-  useEffect(() => {
-    const handleKey = (e) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [onClose]);
-
-  return (
-    <div ref={ref} style={MODAL_OVERLAY_STYLE} onClick={onClose} role="dialog" aria-modal="true" aria-label="Confirm deletion">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        transition={{ duration: 0.2, ease: 'easeOut' }}
-        onClick={(e) => e.stopPropagation()}
+    <div style={{ position: 'relative', flex: 1, minWidth: '240px' }}>
+      <Search
+        size={18}
         style={{
-          background: 'var(--bg-deep, #0d0d14)',
-          border: '1px solid var(--glass-border, rgba(255,255,255,0.1))',
-          borderRadius: '24px',
-          padding: '2.5rem',
-          width: '100%',
-          maxWidth: '420px',
-          textAlign: 'center',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
+          position: 'absolute',
+          left: '1rem',
+          top: '50%',
+          transform: 'translateY(-50%)',
+          color: 'var(--text-secondary)',
+          opacity: value ? 1 : 0.5,
+          pointerEvents: 'none'
         }}
-      >
-        <div style={{
-          width: '64px',
-          height: '64px',
-          borderRadius: '50%',
-          background: 'rgba(255, 77, 77, 0.1)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          margin: '0 auto 1.5rem',
-          color: '#ff4d4d',
-          boxShadow: '0 0 20px rgba(255, 77, 77, 0.1)'
-        }}>
-          <Trash2 size={32} />
-        </div>
-
-        <h2 style={{ margin: '0 0 0.75rem', fontSize: '1.5rem', fontWeight: 700 }}>Delete Student?</h2>
-        <p style={{ margin: '0 0 2.5rem', fontSize: '0.95rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-          Are you sure you want to delete <strong>{student.first_name} {student.last_name}</strong>?<br/>
-          This action will permanently remove their account and cannot be undone.
-        </p>
-
-        <div style={{ display: 'flex', gap: '1rem' }}>
-          <button
-            type="button"
-            onClick={onClose}
-            className="icon-btn"
-            disabled={isDeleting}
-            style={{ flex: 1, height: '48px', width: 'auto', borderRadius: '12px' }}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            disabled={isDeleting}
-            className="icon-btn delete"
-            style={{
-              flex: 1,
-              height: '48px',
-              width: 'auto',
-              borderRadius: '12px',
-              background: 'rgba(255, 77, 77, 0.1)',
-              color: '#ff4d4d',
-              fontWeight: 600,
-              gap: '0.5rem'
-            }}
-          >
-            {isDeleting ? <Loader size={18} className="animate-spin" /> : <Trash2 size={18} />}
-            {isDeleting ? 'Deleting...' : 'Delete'}
-          </button>
-        </div>
-      </motion.div>
-    </div>
-  );
-}));
-
-const PasswordResetModal = memo(forwardRef(({ student, onClose }, ref) => {
-  const [password, setPassword] = useState('');
-  const [confirmation, setConfirmation] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(false);
-  const passwordRef = useRef(null);
-
-  useEffect(() => { passwordRef.current?.focus(); }, []);
-
-  useEffect(() => {
-    const handleKey = (e) => { if (e.key === 'Escape' && !saving) onClose(); };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [onClose, saving]);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError(null);
-
-    if (password.length < 8) {
-      setError('The new password must be at least 8 characters.');
-      return;
-    }
-    if (password !== confirmation) {
-      setError('The passwords do not match.');
-      return;
-    }
-
-    setSaving(true);
-    try {
-      const { data, error: functionError } = await supabase.functions.invoke('admin-reset-password', {
-        body: { userId: student.id, password },
-      });
-      if (functionError) throw functionError;
-      if (!data?.success) throw new Error(data?.error || 'Unable to change the password.');
-      setPassword('');
-      setConfirmation('');
-      setSuccess(true);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div ref={ref} style={MODAL_OVERLAY_STYLE} onClick={saving ? undefined : onClose} role="dialog" aria-modal="true" aria-label="Change student password">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        onClick={(e) => e.stopPropagation()}
-        className="glass-card modal-content password-reset-modal"
-      >
-        <div className="password-reset-heading">
-          <div>
-            <h2>Change Password</h2>
-            <p>{student.first_name} {student.last_name}</p>
-          </div>
-          <button type="button" onClick={onClose} className="icon-btn" aria-label="Close modal" disabled={saving}>
-            <X size={20} />
-          </button>
-        </div>
-
-        {success ? (
-          <div className="password-reset-success" role="status">
-            <KeyRound size={28} />
-            <h3>Password changed</h3>
-            <p>Share the new password with the student through a secure channel.</p>
-            <button type="button" className="submit-btn" onClick={onClose}>Done</button>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="password-reset-form">
-            <p className="password-reset-note">Set a new password and communicate it directly to the student. It is stored only by Supabase Auth as a secure password hash.</p>
-            <label htmlFor="new-password">New password</label>
-            <div className="password-field">
-              <input
-                ref={passwordRef}
-                id="new-password"
-                type={showPassword ? 'text' : 'password'}
-                minLength="8"
-                required
-                autoComplete="new-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-              <button type="button" onClick={() => setShowPassword((shown) => !shown)} aria-label={showPassword ? 'Hide password' : 'Show password'}>
-                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-              </button>
-            </div>
-            <label htmlFor="confirm-new-password">Confirm new password</label>
-            <input
-              id="confirm-new-password"
-              type={showPassword ? 'text' : 'password'}
-              minLength="8"
-              required
-              autoComplete="new-password"
-              value={confirmation}
-              onChange={(e) => setConfirmation(e.target.value)}
-            />
-            {error ? <p className="admin-action-error" role="alert">{error}</p> : null}
-            <div className="modal-footer">
-              <button type="button" onClick={onClose} className="cancel-btn" disabled={saving}>Cancel</button>
-              <button type="submit" className="submit-btn" disabled={saving}>
-                {saving ? <Loader size={18} className="animate-spin" /> : <KeyRound size={18} />}
-                {saving ? 'Changing…' : 'Change Password'}
-              </button>
-            </div>
-          </form>
-        )}
-      </motion.div>
-    </div>
-  );
-}));
-
-const SearchBar = memo(({ value, onChange, inputRef, isLoading }) => {
-  return (
-    <div className="glass-card" style={{ padding: '0.5rem', borderRadius: '16px', display: 'flex', alignItems: 'center', flex: 1 }}>
-      <div style={{ position: 'relative', flex: 1 }}>
-        <Search size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)', opacity: value ? 1 : 0.5 }} />
-        <input
-          ref={inputRef}
-          type="text"
-          placeholder="Search students..."
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
+      />
+      <input
+        ref={inputRef}
+        type="text"
+        placeholder="Search by name, username, student no..."
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        style={{
+          width: '100%',
+          padding: '0.65rem 2.5rem 0.65rem 2.8rem',
+          background: 'rgba(0,0,0,0.25)',
+          border: '1px solid var(--glass-border)',
+          borderRadius: '12px',
+          fontSize: '0.9rem',
+          color: '#fff',
+          outline: 'none',
+          boxSizing: 'border-box'
+        }}
+      />
+      {value && (
+        <button
+          type="button"
+          onClick={() => onChange('')}
           style={{
-            width: '100%',
-            padding: '0.75rem 2.5rem 0.75rem 2.8rem',
-            background: 'rgba(0,0,0,0.2)',
-            border: '1px solid var(--glass-border)',
-            borderRadius: '12px',
-            fontSize: '0.9rem',
-            color: '#fff',
-            outline: 'none'
+            position: 'absolute',
+            right: '0.75rem',
+            top: '50%',
+            transform: 'translateY(-50%)',
+            background: 'none',
+            border: 'none',
+            color: 'var(--text-secondary)',
+            cursor: 'pointer',
+            display: 'flex'
           }}
-        />
-        {value && (
-          <button
-            onClick={() => onChange('')}
-            style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex' }}
-          >
-            <X size={16} />
-          </button>
-        )}
-      </div>
+          aria-label="Clear search"
+        >
+          <X size={16} />
+        </button>
+      )}
     </div>
   );
 });
@@ -424,14 +81,19 @@ const StudentManagement = () => {
   const [searchParams] = useSearchParams();
   const location = useLocation();
   const targetStudentId = location.state?.highlightStudentId || searchParams.get('student');
-  const { data: students = [], error: swrError, isLoading, mutate } = useSWR('admin-students', fetchStudents);
+  const { data: students = [], isLoading, mutate } = useSWR('admin-students', fetchStudents);
+
+  // Filters & State
   const [searchTerm, setSearchTerm] = useState('');
   const deferredSearchTerm = useDeferredValue(searchTerm);
-  const [editTarget, setEditTarget] = useState(null);
-  const [deleteTarget, setDeleteTarget] = useState(null);
-  const [passwordTarget, setPasswordTarget] = useState(null);
-  const [isDeleting, setIsDeleting] = useState(false);
+  const [activeTab, setActiveTab] = useState('all'); // 'all' | 'needs_approval' | 'active'
+  const [strandFilter, setStrandFilter] = useState('ALL');
   const [highlightedStudentId, setHighlightedStudentId] = useState(null);
+  const [approvingId, setApprovingId] = useState(null);
+
+  // Pagination (Fixes infinite scrolling!)
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const searchInputRef = useRef(null);
 
@@ -446,8 +108,38 @@ const StudentManagement = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // Counts for tabs
+  const counts = useMemo(() => {
+    let pending = 0;
+    let approved = 0;
+    students.forEach((s) => {
+      if (s.status === 'pending') pending++;
+      else approved++;
+    });
+    return {
+      all: students.length,
+      needs_approval: pending,
+      active: approved
+    };
+  }, [students]);
+
+  // Available strands for quick filter
+  const availableStrands = useMemo(() => {
+    const set = new Set();
+    students.forEach((s) => {
+      if (s.shs_strand) set.add(s.shs_strand);
+    });
+    return Array.from(set).sort();
+  }, [students]);
+
+  // Target student auto-scroll & auto-tab switch
   useEffect(() => {
     if (!targetStudentId || isLoading || !students.some((student) => student.id === targetStudentId)) return undefined;
+
+    const targetStudent = students.find((s) => s.id === targetStudentId);
+    if (targetStudent && targetStudent.status === 'pending') {
+      setActiveTab('needs_approval');
+    }
 
     setSearchTerm('');
     setHighlightedStudentId(targetStudentId);
@@ -462,7 +154,9 @@ const StudentManagement = () => {
     };
   }, [isLoading, location.key, students, targetStudentId]);
 
+  // Approve action
   const handleApprove = useCallback(async (id) => {
+    setApprovingId(id);
     try {
       const { error } = await supabase
         .from('profiles')
@@ -473,160 +167,497 @@ const StudentManagement = () => {
       mutate(prev => prev.map(s => (s.id === id ? { ...s, status: 'approved' } : s)), false);
     } catch (err) {
       alert('Error approving student: ' + err.message);
-    }
-  }, [mutate]);
-
-  const handleReject = useCallback(async (id) => {
-    try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ status: 'rejected' })
-        .eq('id', id);
-
-      if (error) throw error;
-      mutate(prev => prev.map(s => (s.id === id ? { ...s, status: 'rejected' } : s)), false);
-    } catch (err) {
-      alert('Error rejecting student: ' + err.message);
-    } [mutate];
-  }, [mutate]);
-
-  const handleEditSave = useCallback((updated) => {
-    mutate(prev => prev.map(s => (s.id === updated.id ? updated : s)), false);
-    setEditTarget(null);
-  }, [mutate]);
-
-  const handleDelete = useCallback(async () => {
-    if (!deleteTarget) return;
-    setIsDeleting(true);
-    try {
-      const { error } = await supabase.rpc('delete_student', { target_user_id: deleteTarget.id });
-      if (error) throw error;
-      mutate(prev => prev.filter(s => s.id !== deleteTarget.id), false);
-      setDeleteTarget(null);
-    } catch (err) {
-      alert('Error deleting student: ' + err.message);
     } finally {
-      setIsDeleting(false);
+      setApprovingId(null);
     }
-  }, [deleteTarget, mutate]);
+  }, [mutate]);
 
+  // Filtered dataset
   const filteredStudents = useMemo(() => {
     const lowerQuery = deferredSearchTerm.toLowerCase();
-    if (!lowerQuery) return students;
     return students.filter((student) => {
+      // Tab filter
+      if (activeTab === 'needs_approval' && student.status !== 'pending') return false;
+      if (activeTab === 'active' && student.status === 'pending') return false;
+
+      // Strand filter
+      if (strandFilter !== 'ALL' && student.shs_strand !== strandFilter) return false;
+
+      // Search query
+      if (!lowerQuery) return true;
       const fullName = `${student.first_name ?? ''} ${student.last_name ?? ''}`.toLowerCase();
       return fullName.includes(lowerQuery)
         || student.id.toLowerCase().includes(lowerQuery)
         || student.username?.toLowerCase().includes(lowerQuery)
         || student.student_no?.toLowerCase().includes(lowerQuery);
     });
-  }, [students, deferredSearchTerm]);
+  }, [students, deferredSearchTerm, activeTab, strandFilter]);
+
+  // Reset to page 1 whenever filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [deferredSearchTerm, activeTab, strandFilter, pageSize]);
+
+  // Calculate pagination slice
+  const totalItems = filteredStudents.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const validCurrentPage = Math.min(currentPage, totalPages);
+
+  const paginatedStudents = useMemo(() => {
+    const startIndex = (validCurrentPage - 1) * pageSize;
+    return filteredStudents.slice(startIndex, startIndex + pageSize);
+  }, [filteredStudents, validCurrentPage, pageSize]);
+
+  const startIndex = totalItems === 0 ? 0 : (validCurrentPage - 1) * pageSize + 1;
+  const endIndex = Math.min(validCurrentPage * pageSize, totalItems);
 
   return (
-    <div className="admin-page">
-      <header className="page-header">
+    <div className="admin-page" style={{ maxWidth: '1280px', margin: '0 auto', paddingBottom: '2rem' }}>
+      
+      {/* Page Header */}
+      <header className="page-header" style={{ marginBottom: '1.5rem' }}>
         <div>
-          <h1 style={{ margin: 0 }}>Student Management</h1>
-          <p style={{ color: 'var(--text-secondary)', margin: '1rem 0 0', fontSize: '1.1rem' }}>
-            View and manage student profiles.
+          <h1 style={{ margin: 0, fontSize: '1.85rem', fontWeight: 700 }}>Student Management</h1>
+          <p style={{ color: 'var(--text-secondary)', margin: '0.35rem 0 0', fontSize: '0.95rem' }}>
+            Organized student records and pending approvals.
           </p>
         </div>
-        <div className="search-container" style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-          <button onClick={() => mutate()} className="refresh-btn" title="Refresh list">
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          <button
+            onClick={() => mutate()}
+            className="refresh-btn"
+            title="Refresh list"
+            style={{
+              padding: '0.65rem',
+              borderRadius: '12px',
+              border: '1px solid var(--glass-border)',
+              background: 'var(--glass-bg)',
+              color: 'var(--text-secondary)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
             <RefreshCw size={18} className={isLoading ? 'animate-spin' : ''} />
           </button>
-          <SearchBar value={searchTerm} onChange={setSearchTerm} inputRef={searchInputRef} />
         </div>
       </header>
 
-      <div className="data-table-container">
-        <table className="data-table">
+      {/* Main Glass Control Panel (Tabs + Search + Filters) */}
+      <div className="glass-card" style={{ padding: '1.25rem', borderRadius: '18px', marginBottom: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        
+        {/* Top Bar: Tabs & Quick Category */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+          
+          {/* Segmented Tab Filter */}
+          <div style={{
+            display: 'inline-flex',
+            padding: '4px',
+            borderRadius: '12px',
+            background: 'rgba(0, 0, 0, 0.3)',
+            border: '1px solid var(--glass-border)',
+            gap: '4px'
+          }}>
+            <button
+              type="button"
+              onClick={() => setActiveTab('all')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                padding: '0.45rem 0.9rem',
+                borderRadius: '8px',
+                border: 'none',
+                background: activeTab === 'all' ? 'var(--accent-teal)' : 'transparent',
+                color: activeTab === 'all' ? '#000' : 'var(--text-secondary)',
+                fontWeight: activeTab === 'all' ? 700 : 500,
+                fontSize: '0.85rem',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <Users size={15} /> All Students
+              <span style={{
+                fontSize: '0.75rem',
+                padding: '0.1rem 0.45rem',
+                borderRadius: '999px',
+                background: activeTab === 'all' ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.08)',
+                color: activeTab === 'all' ? '#000' : '#fff'
+              }}>
+                {counts.all}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('needs_approval')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                padding: '0.45rem 0.9rem',
+                borderRadius: '8px',
+                border: 'none',
+                background: activeTab === 'needs_approval' ? '#fbbf24' : 'transparent',
+                color: activeTab === 'needs_approval' ? '#000' : 'var(--text-secondary)',
+                fontWeight: activeTab === 'needs_approval' ? 700 : 500,
+                fontSize: '0.85rem',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <Clock size={15} /> Needs Approval
+              {counts.needs_approval > 0 && (
+                <span style={{
+                  fontSize: '0.75rem',
+                  padding: '0.1rem 0.45rem',
+                  borderRadius: '999px',
+                  background: activeTab === 'needs_approval' ? 'rgba(0,0,0,0.25)' : 'rgba(251, 191, 36, 0.2)',
+                  color: activeTab === 'needs_approval' ? '#000' : '#fbbf24',
+                  fontWeight: 700
+                }}>
+                  {counts.needs_approval}
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('active')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                padding: '0.45rem 0.9rem',
+                borderRadius: '8px',
+                border: 'none',
+                background: activeTab === 'active' ? '#4ade80' : 'transparent',
+                color: activeTab === 'active' ? '#000' : 'var(--text-secondary)',
+                fontWeight: activeTab === 'active' ? 700 : 500,
+                fontSize: '0.85rem',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <CheckCircle size={15} /> Approved
+              <span style={{
+                fontSize: '0.75rem',
+                padding: '0.1rem 0.45rem',
+                borderRadius: '999px',
+                background: activeTab === 'active' ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.08)',
+                color: activeTab === 'active' ? '#000' : '#fff'
+              }}>
+                {counts.active}
+              </span>
+            </button>
+          </div>
+
+          {/* Strand Quick Filter Dropdown */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>Strand:</span>
+            <select
+              value={strandFilter}
+              onChange={(e) => setStrandFilter(e.target.value)}
+              style={{
+                padding: '0.45rem 0.75rem',
+                borderRadius: '10px',
+                border: '1px solid var(--glass-border)',
+                background: 'rgba(0, 0, 0, 0.3)',
+                color: '#fff',
+                fontSize: '0.85rem',
+                outline: 'none',
+                cursor: 'pointer'
+              }}
+            >
+              <option value="ALL">All Strands</option>
+              {availableStrands.map((strand) => (
+                <option key={strand} value={strand}>{strand}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Bottom Bar: Search + Rows per page */}
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <SearchBar value={searchTerm} onChange={setSearchTerm} inputRef={searchInputRef} />
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: 'auto' }}>
+            <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>Show:</span>
+            <select
+              value={pageSize}
+              onChange={(e) => setPageSize(Number(e.target.value))}
+              style={{
+                padding: '0.55rem 0.75rem',
+                borderRadius: '10px',
+                border: '1px solid var(--glass-border)',
+                background: 'rgba(0, 0, 0, 0.3)',
+                color: '#fff',
+                fontSize: '0.85rem',
+                outline: 'none',
+                cursor: 'pointer'
+              }}
+            >
+              <option value={5}>5 / page</option>
+              <option value={10}>10 / page</option>
+              <option value={20}>20 / page</option>
+              <option value={50}>50 / page</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Structured Table Container */}
+      <div className="data-table-container glass-card" style={{ padding: 0, borderRadius: '18px', overflow: 'hidden' }}>
+        <table className="data-table" style={{ margin: 0, width: '100%' }}>
           <thead>
             <tr>
-              <th>Name</th>
+              <th style={{ padding: '1rem 1.25rem' }}>Name</th>
               <th>Username</th>
               <th>Student No.</th>
-              <th>Joined Date</th>
-              <th>Status</th>
-              <th style={{ textAlign: 'right' }}>Actions</th>
+              <th>Grade</th>
+              <th>SHS Strand</th>
+              <th>Registered</th>
+              <th style={{ textAlign: 'right', paddingRight: '1.25rem' }}>Action</th>
             </tr>
           </thead>
           <tbody>
             <AnimatePresence mode="popLayout">
-              {filteredStudents.map((student, i) => (
-                <motion.tr
-                  key={student.id}
-                  id={`student-${student.id}`}
-                  className={highlightedStudentId === student.id ? 'student-row-highlighted' : ''}
-                  layout
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ duration: 0.2, delay: i * 0.02 }}
-                >
-                  <td style={{ fontWeight: 600 }}>{student.first_name} {student.last_name}</td>
-                  <td style={{ color: 'var(--accent-teal)', fontSize: '0.85rem', fontFamily: 'monospace', fontWeight: 600 }}>{student.username || 'Not assigned'}</td>
-                  <td style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{student.student_no}</td>
-                  <td>{new Date(student.created_at).toLocaleDateString()}</td>
-                  <td>
-                    <span className={`status-badge ${student.status}`}>
-                      {student.status || 'Pending'}
-                    </span>
-                  </td>
-                  <td>
-                    <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end' }}>
-                      {student.status === 'pending' && (
-                        <>
-                          <button onClick={() => handleApprove(student.id)} className="icon-btn" style={{ color: 'var(--accent-teal)', fontSize: '0.75rem', fontWeight: 600, width: 'auto', padding: '0 0.75rem' }}>Approve</button>
-                          <button onClick={() => handleReject(student.id)} className="icon-btn" style={{ color: '#ff4d4d', fontSize: '0.75rem', fontWeight: 600, width: 'auto', padding: '0 0.75rem' }}>Reject</button>
-                        </>
+              {paginatedStudents.map((student, i) => {
+                const isPending = student.status === 'pending';
+                const isCurrentApproving = approvingId === student.id;
+
+                return (
+                  <motion.tr
+                    key={student.id}
+                    id={`student-${student.id}`}
+                    className={highlightedStudentId === student.id ? 'student-row-highlighted' : ''}
+                    layout
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.98 }}
+                    transition={{ duration: 0.15, delay: i * 0.015 }}
+                    style={{
+                      background: isPending ? 'rgba(251, 191, 36, 0.02)' : 'transparent'
+                    }}
+                  >
+                    <td style={{ fontWeight: 600, padding: '1rem 1.25rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                        <div style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '8px',
+                          background: 'rgba(0, 242, 254, 0.1)',
+                          color: 'var(--accent-teal)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '0.85rem',
+                          fontWeight: 700,
+                          flexShrink: 0
+                        }}>
+                          {student.first_name ? student.first_name.charAt(0).toUpperCase() : 'S'}
+                        </div>
+                        <div>
+                          <div>{student.first_name} {student.last_name}</div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{student.email || ''}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td style={{ color: 'var(--accent-teal)', fontSize: '0.85rem', fontFamily: 'monospace', fontWeight: 600 }}>
+                      @{student.username || 'not_set'}
+                    </td>
+                    <td style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', fontFamily: 'monospace' }}>
+                      {student.student_no || '—'}
+                    </td>
+                    <td style={{ fontSize: '0.85rem' }}>
+                      {student.grade_level ? `Grade ${student.grade_level}` : '—'}
+                    </td>
+                    <td>
+                      {student.shs_strand ? (
+                        <span style={{
+                          padding: '0.2rem 0.55rem',
+                          borderRadius: '6px',
+                          background: 'rgba(0, 242, 254, 0.08)',
+                          border: '1px solid rgba(0, 242, 254, 0.2)',
+                          color: 'var(--accent-teal)',
+                          fontSize: '0.78rem',
+                          fontWeight: 600
+                        }}>
+                          {student.shs_strand}
+                        </span>
+                      ) : (
+                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                          {student.shs_track || '—'}
+                        </span>
                       )}
-                      <button onClick={() => setPasswordTarget(student)} className="icon-btn" title="Change password" aria-label={`Change password for ${student.first_name} ${student.last_name}`}><KeyRound size={16} /></button>
-                      <button onClick={() => setEditTarget(student)} className="icon-btn"><Edit size={16} /></button>
-                      <button onClick={() => setDeleteTarget(student)} className="icon-btn delete"><Trash2 size={16} /></button>
-                    </div>
-                  </td>
-                </motion.tr>
-              ))}
+                    </td>
+                    <td style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                      {new Date(student.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </td>
+                    <td style={{ textAlign: 'right', paddingRight: '1.25rem' }}>
+                      {isPending ? (
+                        <button
+                          type="button"
+                          onClick={() => handleApprove(student.id)}
+                          disabled={isCurrentApproving}
+                          className="icon-btn"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            color: '#000',
+                            background: 'var(--accent-teal)',
+                            border: 'none',
+                            fontSize: '0.78rem',
+                            fontWeight: 700,
+                            padding: '0.38rem 0.85rem',
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                            boxShadow: '0 2px 8px rgba(0, 242, 254, 0.25)',
+                            transition: 'all 0.2s ease'
+                          }}
+                        >
+                          {isCurrentApproving ? (
+                            <Loader size={13} className="animate-spin" />
+                          ) : (
+                            <Check size={13} />
+                          )}
+                          Approve
+                        </button>
+                      ) : (
+                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>—</span>
+                      )}
+                    </td>
+                  </motion.tr>
+                );
+              })}
             </AnimatePresence>
+
+            {/* Empty state */}
             {!isLoading && filteredStudents.length === 0 && (
               <tr>
-                <td colSpan="6" style={{ textAlign: 'center', padding: '10rem', color: 'var(--text-secondary)' }}>
-                  <Search size={40} style={{ opacity: 0.2, marginBottom: '1rem' }} />
-                  <p>No students found matching your search.</p>
+                <td colSpan="7" style={{ textAlign: 'center', padding: '4.5rem 1rem', color: 'var(--text-secondary)' }}>
+                  <Search size={36} style={{ opacity: 0.2, marginBottom: '0.75rem' }} />
+                  <p style={{ margin: 0, fontSize: '0.95rem' }}>No student records found matching your criteria.</p>
                 </td>
               </tr>
             )}
+
+            {/* Loading state */}
             {isLoading && students.length === 0 && (
               <tr>
-                <td colSpan="5" style={{ textAlign: 'center', padding: '10rem' }}>
-                  <Loader className="animate-spin" size={32} color="var(--accent-teal)" />
+                <td colSpan="7" style={{ textAlign: 'center', padding: '4.5rem 1rem' }}>
+                  <Loader className="animate-spin" size={32} color="var(--accent-teal)" style={{ margin: '0 auto' }} />
+                  <p style={{ marginTop: '0.75rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Loading students...</p>
                 </td>
               </tr>
             )}
           </tbody>
         </table>
+
+        {/* ─── Compact Pagination & Footer (Eliminates Scrolling) ───────────────── */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '0.85rem 1.25rem',
+          borderTop: '1px solid var(--glass-border)',
+          background: 'rgba(0,0,0,0.2)',
+          fontSize: '0.85rem',
+          color: 'var(--text-secondary)',
+          flexWrap: 'wrap',
+          gap: '0.75rem'
+        }}>
+          <div>
+            Showing <strong style={{ color: '#fff' }}>{startIndex}</strong> – <strong style={{ color: '#fff' }}>{endIndex}</strong> of <strong style={{ color: '#fff' }}>{totalItems}</strong> students
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <button
+              type="button"
+              onClick={() => setCurrentPage(1)}
+              disabled={validCurrentPage <= 1}
+              style={{
+                padding: '0.35rem 0.5rem',
+                borderRadius: '8px',
+                border: '1px solid var(--glass-border)',
+                background: 'var(--glass-bg)',
+                color: validCurrentPage <= 1 ? 'rgba(255,255,255,0.2)' : '#fff',
+                cursor: validCurrentPage <= 1 ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center'
+              }}
+              title="First page"
+            >
+              <ChevronsLeft size={16} />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={validCurrentPage <= 1}
+              style={{
+                padding: '0.35rem 0.65rem',
+                borderRadius: '8px',
+                border: '1px solid var(--glass-border)',
+                background: 'var(--glass-bg)',
+                color: validCurrentPage <= 1 ? 'rgba(255,255,255,0.2)' : '#fff',
+                cursor: validCurrentPage <= 1 ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.2rem'
+              }}
+              title="Previous page"
+            >
+              <ChevronLeft size={16} /> Prev
+            </button>
+
+            <span style={{ padding: '0 0.5rem', fontWeight: 600, color: '#fff' }}>
+              Page {validCurrentPage} of {totalPages}
+            </span>
+
+            <button
+              type="button"
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={validCurrentPage >= totalPages}
+              style={{
+                padding: '0.35rem 0.65rem',
+                borderRadius: '8px',
+                border: '1px solid var(--glass-border)',
+                background: 'var(--glass-bg)',
+                color: validCurrentPage >= totalPages ? 'rgba(255,255,255,0.2)' : '#fff',
+                cursor: validCurrentPage >= totalPages ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.2rem'
+              }}
+              title="Next page"
+            >
+              Next <ChevronRight size={16} />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={validCurrentPage >= totalPages}
+              style={{
+                padding: '0.35rem 0.5rem',
+                borderRadius: '8px',
+                border: '1px solid var(--glass-border)',
+                background: 'var(--glass-bg)',
+                color: validCurrentPage >= totalPages ? 'rgba(255,255,255,0.2)' : '#fff',
+                cursor: validCurrentPage >= totalPages ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center'
+              }}
+              title="Last page"
+            >
+              <ChevronsRight size={16} />
+            </button>
+          </div>
+        </div>
       </div>
-
-      <AnimatePresence>
-        {editTarget && <EditModal student={editTarget} onClose={() => setEditTarget(null)} onSave={handleEditSave} />}
-        {passwordTarget && <PasswordResetModal student={passwordTarget} onClose={() => setPasswordTarget(null)} />}
-        {deleteTarget && <DeleteConfirmationModal student={deleteTarget} onClose={() => setDeleteTarget(null)} onConfirm={handleDelete} isDeleting={isDeleting} />}
-      </AnimatePresence>
-
-      <style>{`
-        .status-badge {
-          padding: 0.35rem 0.85rem;
-          border-radius: 20px;
-          font-size: 0.75rem;
-          font-weight: 600;
-          text-transform: capitalize;
-          display: inline-block;
-        }
-        .status-badge.approved { background: rgba(74, 222, 128, 0.1); color: #4ade80; }
-        .status-badge.rejected { background: rgba(255, 77, 77, 0.1); color: #ff4d4d; }
-        .status-badge.pending { background: rgba(251, 191, 36, 0.1); color: #fbbf24; }
-      `}</style>
     </div>
   );
 };

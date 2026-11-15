@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import AdminContactForm from '../components/auth/AdminContactForm';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -40,6 +40,8 @@ const RecoverAccount = () => {
   const [error, setError] = useState(recoveryError || '');
   const [success, setSuccess] = useState('');
   const [requestLink, setRequestLink] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const inFlight = useRef(false);
   const heading = useRef(null);
   const confirmInput = useRef(null);
@@ -138,6 +140,10 @@ const RecoverAccount = () => {
     const normalizedUsername = username.trim().toLowerCase();
     if (action === 'password' && (password.length < 8 || password.length > 128)) {
       setError('Use a password between 8 and 128 characters.');
+      return;
+    }
+    if (action === 'password' && password !== confirmation) {
+      setError('Passwords do not match. Please re-enter your new password.');
       return;
     }
     if (action === 'username' && !USERNAME_PATTERN.test(normalizedUsername)) {
@@ -243,10 +249,10 @@ const RecoverAccount = () => {
                       <>
                         <div>
                           <label className="recovery-field-label" htmlFor="new-password">New password</label>
-                          <div className="input-group recovery-input">
+                          <div className="input-group recovery-input has-password-toggle">
                             <input
                               id="new-password"
-                              type="password"
+                              type={showNewPassword ? 'text' : 'password'}
                               autoComplete="new-password"
                               minLength={8}
                               maxLength={128}
@@ -256,22 +262,40 @@ const RecoverAccount = () => {
                               onChange={(event) => { setPassword(event.target.value); confirmInput.current?.setCustomValidity(''); }}
                               aria-describedby="password-hint"
                             />
+                            <button
+                              type="button"
+                              className="password-visibility-toggle"
+                              onClick={() => setShowNewPassword((v) => !v)}
+                              aria-label={showNewPassword ? 'Hide password' : 'Show password'}
+                              aria-pressed={showNewPassword}
+                            >
+                              {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                            </button>
                           </div>
                           <small id="password-hint" className="recovery-note">Use 8–128 characters.</small>
                         </div>
                         <div>
                           <label className="recovery-field-label" htmlFor="confirm-password">Confirm new password</label>
-                          <div className="input-group recovery-input">
+                          <div className="input-group recovery-input has-password-toggle">
                             <input
                               id="confirm-password"
                               ref={confirmInput}
-                              type="password"
+                              type={showConfirmPassword ? 'text' : 'password'}
                               autoComplete="new-password"
                               required
                               disabled={sending}
                               value={confirmation}
                               onChange={(event) => { setConfirmation(event.target.value); event.target.setCustomValidity(''); }}
                             />
+                            <button
+                              type="button"
+                              className="password-visibility-toggle"
+                              onClick={() => setShowConfirmPassword((v) => !v)}
+                              aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                              aria-pressed={showConfirmPassword}
+                            >
+                              {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                            </button>
                           </div>
                         </div>
                       </>
