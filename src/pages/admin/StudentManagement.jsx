@@ -255,7 +255,7 @@ const StudentManagement = () => {
             display: 'inline-flex',
             padding: '4px',
             borderRadius: '12px',
-            background: 'rgba(0, 0, 0, 0.3)',
+            background: 'var(--field-bg)',
             border: '1px solid var(--glass-border)',
             gap: '4px'
           }}>
@@ -270,7 +270,7 @@ const StudentManagement = () => {
                 borderRadius: '8px',
                 border: 'none',
                 background: activeTab === 'all' ? 'var(--accent-teal)' : 'transparent',
-                color: activeTab === 'all' ? '#000' : 'var(--text-secondary)',
+                color: activeTab === 'all' ? 'var(--on-accent)' : 'var(--text-secondary)',
                 fontWeight: activeTab === 'all' ? 700 : 500,
                 fontSize: '0.85rem',
                 cursor: 'pointer',
@@ -282,8 +282,8 @@ const StudentManagement = () => {
                 fontSize: '0.75rem',
                 padding: '0.1rem 0.45rem',
                 borderRadius: '999px',
-                background: activeTab === 'all' ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.08)',
-                color: activeTab === 'all' ? '#000' : '#fff'
+                background: activeTab === 'all' ? 'rgba(0,0,0,0.15)' : 'var(--glass-border)',
+                color: activeTab === 'all' ? 'var(--on-accent)' : 'var(--text-primary)'
               }}>
                 {counts.all}
               </span>
@@ -299,8 +299,8 @@ const StudentManagement = () => {
                 padding: '0.45rem 0.9rem',
                 borderRadius: '8px',
                 border: 'none',
-                background: activeTab === 'needs_approval' ? '#fbbf24' : 'transparent',
-                color: activeTab === 'needs_approval' ? '#000' : 'var(--text-secondary)',
+                background: activeTab === 'needs_approval' ? 'var(--warning)' : 'transparent',
+                color: activeTab === 'needs_approval' ? '#ffffff' : 'var(--text-secondary)',
                 fontWeight: activeTab === 'needs_approval' ? 700 : 500,
                 fontSize: '0.85rem',
                 cursor: 'pointer',
@@ -313,8 +313,8 @@ const StudentManagement = () => {
                   fontSize: '0.75rem',
                   padding: '0.1rem 0.45rem',
                   borderRadius: '999px',
-                  background: activeTab === 'needs_approval' ? 'rgba(0,0,0,0.25)' : 'rgba(251, 191, 36, 0.2)',
-                  color: activeTab === 'needs_approval' ? '#000' : '#fbbf24',
+                  background: activeTab === 'needs_approval' ? 'rgba(0,0,0,0.2)' : 'rgba(251, 191, 36, 0.25)',
+                  color: activeTab === 'needs_approval' ? '#ffffff' : 'var(--warning)',
                   fontWeight: 700
                 }}>
                   {counts.needs_approval}
@@ -332,8 +332,8 @@ const StudentManagement = () => {
                 padding: '0.45rem 0.9rem',
                 borderRadius: '8px',
                 border: 'none',
-                background: activeTab === 'active' ? '#4ade80' : 'transparent',
-                color: activeTab === 'active' ? '#000' : 'var(--text-secondary)',
+                background: activeTab === 'active' ? 'var(--success)' : 'transparent',
+                color: activeTab === 'active' ? '#ffffff' : 'var(--text-secondary)',
                 fontWeight: activeTab === 'active' ? 700 : 500,
                 fontSize: '0.85rem',
                 cursor: 'pointer',
@@ -345,8 +345,8 @@ const StudentManagement = () => {
                 fontSize: '0.75rem',
                 padding: '0.1rem 0.45rem',
                 borderRadius: '999px',
-                background: activeTab === 'active' ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.08)',
-                color: activeTab === 'active' ? '#000' : '#fff'
+                background: activeTab === 'active' ? 'rgba(0,0,0,0.2)' : 'var(--glass-border)',
+                color: activeTab === 'active' ? '#ffffff' : 'var(--text-primary)'
               }}>
                 {counts.active}
               </span>
