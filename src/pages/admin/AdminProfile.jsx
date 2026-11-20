@@ -1,16 +1,12 @@
-import { useEffect, useState } from 'react';
-import { Mail, CheckCircle2, Eye, EyeOff, KeyRound, Loader2, Lock, Save, ShieldCheck } from 'lucide-react';
+import { useState } from 'react';
+import { CheckCircle2, Eye, EyeOff, KeyRound, Loader2, Lock, Save, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 
 const SPECIAL_CHAR_REGEX = /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?~`]/;
 
 const AdminProfile = () => {
-  const { user, profile, refreshProfile } = useAuth();
-  const [email, setEmail] = useState(user?.email || '');
-  const [savingEmail, setSavingEmail] = useState(false);
-  const [emailError, setEmailError] = useState('');
-  const [emailSuccess, setEmailSuccess] = useState('');
+  const { user, profile } = useAuth();
 
   // Password change state
   const [newPassword, setNewPassword] = useState('');
@@ -20,41 +16,6 @@ const AdminProfile = () => {
   const [savingPassword, setSavingPassword] = useState(false);
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState('');
-
-  useEffect(() => {
-    if (user?.email) {
-      setEmail(user.email);
-    }
-  }, [user?.email]);
-
-  const saveEmail = async (event) => {
-    event.preventDefault();
-    setSavingEmail(true);
-    setEmailError('');
-    setEmailSuccess('');
-
-    const targetEmail = email.trim().toLowerCase();
-    if (!targetEmail || !targetEmail.includes('@')) {
-      setEmailError('Please enter a valid email address.');
-      setSavingEmail(false);
-      return;
-    }
-
-    try {
-      const { error: updateError } = await supabase.auth.updateUser({
-        email: targetEmail,
-      });
-
-      if (updateError) throw updateError;
-
-      await refreshProfile();
-      setEmailSuccess('Confirmation request sent. Please check your inbox to confirm your new email address.');
-    } catch (err) {
-      setEmailError(err.message || 'Unable to update your email. Please try again.');
-    } finally {
-      setSavingEmail(false);
-    }
-  };
 
   const savePassword = async (event) => {
     event.preventDefault();
@@ -101,10 +62,11 @@ const AdminProfile = () => {
       <header className="page-header">
         <div>
           <h1 style={{ marginBottom: '0.5rem' }}>Admin Profile</h1>
-          <p style={{ color: 'var(--text-secondary)' }}>Manage your administrator identity, registered email, and security settings.</p>
+          <p style={{ color: 'var(--text-secondary)' }}>Manage your administrator identity and security settings.</p>
         </div>
       </header>
 
+      {/* Identity Card */}
       <section className="admin-profile-card glass-card" style={{ marginBottom: '2rem' }}>
         <div className="admin-profile-identity">
           <span className="admin-profile-avatar"><ShieldCheck size={28} /></span>
@@ -113,37 +75,6 @@ const AdminProfile = () => {
             <p>{user?.email || 'Administrator account'}</p>
           </div>
         </div>
-
-        {/* Change Email form */}
-        <form onSubmit={saveEmail} className="admin-profile-form">
-          <label htmlFor="admin-profile-email">Change Email</label>
-          <div className="admin-profile-input">
-            <Mail size={18} />
-            <input
-              id="admin-profile-email"
-              type="email"
-              required
-              autoComplete="email"
-              placeholder="e.g. administrator@gmail.com"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-            />
-          </div>
-          <small>Enter your registered Gmail or email address used for sign-in.</small>
-
-          {emailError ? <p className="admin-action-error">{emailError}</p> : null}
-          {emailSuccess ? <p className="admin-profile-success"><CheckCircle2 size={17} /> {emailSuccess}</p> : null}
-
-          <button
-            type="submit"
-            className="invite-create-btn"
-            disabled={savingEmail || email.trim().toLowerCase() === user?.email?.toLowerCase()}
-            style={{ width: 'fit-content' }}
-          >
-            {savingEmail ? <Loader2 className="animate-spin" size={17} /> : <Save size={17} />}
-            {savingEmail ? 'Saving…' : 'Update email'}
-          </button>
-        </form>
       </section>
 
       {/* Security / Password section */}
