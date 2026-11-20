@@ -114,7 +114,7 @@ const StudentManagement = () => {
     let nonArchived = 0;
     let archived = 0;
     students.forEach((s) => {
-      if (s.status === 'archived') archived++;
+      if (s.status === 'archived' || s.status === 'rejected') archived++;
       else nonArchived++;
     });
     return {
@@ -137,7 +137,7 @@ const StudentManagement = () => {
     if (!targetStudentId || isLoading || !students.some((student) => student.id === targetStudentId)) return undefined;
 
     const targetStudent = students.find((s) => s.id === targetStudentId);
-    if (targetStudent && targetStudent.status === 'archived') {
+    if (targetStudent && (targetStudent.status === 'archived' || targetStudent.status === 'rejected')) {
       setActiveTab('archived');
     } else {
       setActiveTab('all');
@@ -178,13 +178,25 @@ const StudentManagement = () => {
   const handleArchive = useCallback(async (id) => {
     setArchivingId(id);
     try {
-      const { error } = await supabase
+      let newStatus = 'archived';
+      let { error } = await supabase
         .from('profiles')
         .update({ status: 'archived' })
         .eq('id', id);
 
+      // If the database check constraint only allows ('pending', 'approved', 'rejected'),
+      // fallback to 'rejected' which acts as the archived/disabled state in PostgreSQL.
+      if (error && error.message?.includes('profiles_status_check')) {
+        newStatus = 'rejected';
+        const retry = await supabase
+          .from('profiles')
+          .update({ status: 'rejected' })
+          .eq('id', id);
+        error = retry.error;
+      }
+
       if (error) throw error;
-      mutate(prev => prev.map(s => (s.id === id ? { ...s, status: 'archived' } : s)), false);
+      mutate(prev => prev.map(s => (s.id === id ? { ...s, status: newStatus } : s)), false);
     } catch (err) {
       alert('Error archiving student: ' + err.message);
     } finally {
@@ -215,10 +227,11 @@ const StudentManagement = () => {
     const lowerQuery = deferredSearchTerm.toLowerCase();
     return students.filter((student) => {
       // Tab filter
+      const isArchived = student.status === 'archived' || student.status === 'rejected';
       if (activeTab === 'archived') {
-        if (student.status !== 'archived') return false;
+        if (!isArchived) return false;
       } else {
-        if (student.status === 'archived') return false;
+        if (isArchived) return false;
       }
 
       // Strand filter
