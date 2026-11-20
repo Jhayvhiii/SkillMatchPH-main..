@@ -161,12 +161,30 @@ export default function AssessmentManagement() {
   const [tab, setTab] = useState('questions');
   const [search, setSearch] = useState('');
   const [section, setSectionFilter] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [sortOrder, setSortOrder] = useState('sequence');
   const [editing, setEditing] = useState(undefined);
   const [deleting, setDeleting] = useState(undefined);
   const [feedback, setFeedback] = useState('');
   const activeVersion = data?.versions.find((version) => version.is_active);
   const questions = (data?.questions || EMPTY).filter((question) => question.assessment_version_id === activeVersion?.id);
-  const visibleQuestions = questions.filter((question) => (section === 'all' || question.section === section) && question.prompt.toLowerCase().includes(search.toLowerCase()));
+
+  const visibleQuestions = useMemo(() => {
+    return questions
+      .filter((question) => {
+        if (section !== 'all' && question.section !== section) return false;
+        if (categoryFilter !== 'all') {
+          const cat = question.riasec_letter || question.aptitude_domain;
+          if (cat !== categoryFilter) return false;
+        }
+        if (search.trim() && !question.prompt.toLowerCase().includes(search.toLowerCase())) return false;
+        return true;
+      })
+      .sort((a, b) => {
+        if (sortOrder === 'alpha') return a.prompt.localeCompare(b.prompt);
+        return (a.sequence || 0) - (b.sequence || 0);
+      });
+  }, [questions, section, categoryFilter, search, sortOrder]);
 
   const toggleQuestion = async (question) => {
     setFeedback('');
@@ -218,9 +236,40 @@ export default function AssessmentManagement() {
     {feedback ? <div className="assessment-success" role="status"><CheckCircle2 size={17} /> {feedback}</div> : null}
     <div className="assessment-tabs" role="tablist">{[['questions', ClipboardList, 'Questions'], ['categories', Layers3, 'Categories'], ['analytics', BarChart3, 'Result analytics']].map(([key, Icon, label]) => <button key={key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}><Icon size={17} />{label}</button>)}</div>
     {error ? <div className="assessment-error glass-card"><AlertCircle size={18} /> Could not load assessment data: {error.message}</div> : isLoading ? <div className="assessment-loading"><Loader2 className="animate-spin" /> Loading assessment…</div> : tab === 'questions' ? <>
-      <div className="assessment-toolbar glass-card"><div className="search-wrapper"><Search size={18} /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search questions…" /></div><select value={section} onChange={(e) => setSectionFilter(e.target.value)}><option value="all">All question types</option><option value="interest">Interest</option><option value="aptitude">Aptitude</option></select></div>
+      <div className="assessment-toolbar glass-card">
+        <div className="search-wrapper">
+          <Search size={18} />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search questions…" />
+        </div>
+        <select value={section} onChange={(e) => { setSectionFilter(e.target.value); setCategoryFilter('all'); }}>
+          <option value="all">All question types</option>
+          <option value="interest">Interest (RIASEC)</option>
+          <option value="aptitude">Aptitude</option>
+        </select>
+        <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
+          <option value="all">All categories & letters</option>
+          {(section === 'all' || section === 'interest') && (
+            <optgroup label="RIASEC Letters">
+              {Object.entries(RIASEC_TRAITS).map(([key, value]) => (
+                <option key={key} value={key}>{key} — {value.name}</option>
+              ))}
+            </optgroup>
+          )}
+          {(section === 'all' || section === 'aptitude') && (
+            <optgroup label="Aptitude Domains">
+              {Object.entries(DOMAIN_METADATA).map(([key, value]) => (
+                <option key={key} value={key}>{value.label}</option>
+              ))}
+            </optgroup>
+          )}
+        </select>
+        <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)}>
+          <option value="sequence">Sort: Sequence #</option>
+          <option value="alpha">Sort: Alphabetical</option>
+        </select>
+      </div>
       <div className="assessment-question-list">{visibleQuestions.map((question) => <motion.article layout className={`glass-card assessment-question ${question.is_active ? '' : 'inactive'}`} key={question.id}><div className="question-sequence">{question.sequence}</div><div className="question-copy"><div className="question-badges"><span>{SECTION_LABELS[question.section]}</span><span>{question.section === 'interest' ? `${question.riasec_letter} · ${RIASEC_TRAITS[question.riasec_letter]?.name}` : DOMAIN_METADATA[question.aptitude_domain]?.label}</span>{!question.is_active ? <span className="disabled">Disabled</span> : null}</div><h3>{question.prompt}</h3>{question.section === 'aptitude' ? <p>{question.options.length} choices · Correct answer: {question.options[question.correct_option_index]}</p> : <p>Students answer using the 5-point agreement scale.</p>}</div><div className="question-actions"><button className="icon-btn" onClick={() => setEditing(question)} title="Edit question" aria-label={`Edit question ${question.sequence}`}><Edit2 size={17} /></button><button className="icon-btn" onClick={() => toggleQuestion(question)} title={question.is_active ? 'Disable question' : 'Enable question'} aria-label={`${question.is_active ? 'Disable' : 'Enable'} question ${question.sequence}`}>{question.is_active ? <EyeOff size={17} /> : <Eye size={17} />}</button><button className="icon-btn question-delete-btn" onClick={() => setDeleting(question)} title="Delete question" aria-label={`Delete question ${question.sequence}`}><Trash2 size={17} /></button></div></motion.article>)}{visibleQuestions.length === 0 ? <div className="assessment-empty glass-card">No questions match this view.</div> : null}</div>
-    </> : tab === 'categories' ? <div className="assessment-category-grid">{categoryCards.map((category) => { const count = questions.filter((question) => questionCategory(question) === category.key).length; return <div className="glass-card assessment-category" key={`${category.type}-${category.key}`}><div className="category-icon" style={{ color: category.color, background: `color-mix(in srgb, ${category.color} 12%, transparent)` }}>{category.key.toUpperCase().slice(0, 2)}</div><span>{category.type}</span><h3>{category.name}</h3><p>{category.description}</p><strong>{count} question{count === 1 ? '' : 's'}</strong><button onClick={() => { setSectionFilter(category.type === 'Interest' ? 'interest' : 'aptitude'); setSearch(''); setTab('questions'); }}>Manage questions</button></div>; })}</div> : <Analytics attempts={(data?.attempts || EMPTY).filter((attempt) => attempt.assessment_version_id === activeVersion?.id)} />}
+    </> : tab === 'categories' ? <div className="assessment-category-grid">{categoryCards.map((category) => { const count = questions.filter((question) => questionCategory(question) === category.key).length; return <div className="glass-card assessment-category" key={`${category.type}-${category.key}`}><div className="category-icon" style={{ color: category.color, background: `color-mix(in srgb, ${category.color} 12%, transparent)` }}>{category.key.toUpperCase().slice(0, 2)}</div><span>{category.type}</span><h3>{category.name}</h3><p>{category.description}</p><strong>{count} question{count === 1 ? '' : 's'}</strong><button onClick={() => { setSectionFilter(category.type === 'Interest' ? 'interest' : 'aptitude'); setCategoryFilter(category.key); setSearch(''); setTab('questions'); }}>Manage questions</button></div>; })}</div> : <Analytics attempts={(data?.attempts || EMPTY).filter((attempt) => attempt.assessment_version_id === activeVersion?.id)} />}
     <AnimatePresence>{editing !== undefined ? <QuestionModal question={editing} activeVersionId={activeVersion?.id} questions={questions} onClose={closeModal} onSaved={mutate} /> : null}</AnimatePresence>
     <AnimatePresence>{deleting !== undefined ? <DeleteQuestionModal question={deleting} onClose={() => setDeleting(undefined)} onDeleted={deleteQuestion} /> : null}</AnimatePresence>
   </div>;

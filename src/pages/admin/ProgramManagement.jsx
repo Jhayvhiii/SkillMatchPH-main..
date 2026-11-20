@@ -86,14 +86,21 @@ const ICON_MAP = {
 };
 
 const fetchPrograms = async () => {
-  const { data, error } = await supabase
-    .from('programs')
-    .select('*')
-    .order('category')
-    .order('title');
+  const [progRes, uniRes] = await Promise.all([
+    supabase.from('programs').select('*, program_universities(university_id)').order('category').order('title'),
+    supabase.from('universities').select('id, name').order('name'),
+  ]);
 
-  if (error) throw error;
-  return data;
+  if (progRes.error) throw progRes.error;
+  if (uniRes.error) throw uniRes.error;
+
+  return {
+    programs: (progRes.data || []).map(p => ({
+      ...p,
+      university_ids: (p.program_universities || []).map(pu => pu.university_id),
+    })),
+    universities: uniRes.data || [],
+  };
 };
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
@@ -147,7 +154,7 @@ const ProgramCard = memo(forwardRef(({ program, onEdit, onDelete, index }, ref) 
   );
 }));
 
-const ProgramModal = memo(forwardRef(({ program, onClose, onSave }, ref) => {
+const ProgramModal = memo(forwardRef(({ program, universities = [], onClose, onSave }, ref) => {
   const guideWeights = useMemo(
     () => resolveGuideProfile(program?.title || '', program?.category || CATEGORIES[0]),
     [program?.title, program?.category]
@@ -163,11 +170,19 @@ const ProgramModal = memo(forwardRef(({ program, onClose, onSave }, ref) => {
   );
 
   const [formData, setFormData] = useState(() => program || INITIAL_PROG_FORM);
+  const [selectedUniIds, setSelectedUniIds] = useState(() => program?.university_ids || []);
+  const [uniSearch, setUniSearch] = useState('');
   const [useCustomWeights, setUseCustomWeights] = useState(() => Boolean(program?.riasec_weights));
   const [riasec, setRiasec] = useState(initialRiasec);
   const [aptitude, setAptitude] = useState(initialAptitude);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState(null);
+
+  const filteredUnis = useMemo(() => {
+    if (!uniSearch.trim()) return universities;
+    const q = uniSearch.toLowerCase();
+    return universities.filter(u => u.name.toLowerCase().includes(q));
+  }, [universities, uniSearch]);
 
   const handleCategoryChange = useCallback((value) => {
     setFormData(prev => {
@@ -213,6 +228,7 @@ const ProgramModal = memo(forwardRef(({ program, onClose, onSave }, ref) => {
         ...formData,
         riasec_weights: useCustomWeights ? riasec : null,
         aptitude_weights: useCustomWeights ? aptitude : null,
+        university_ids: selectedUniIds,
       };
       await onSave(payload);
       onClose();
@@ -311,6 +327,115 @@ const ProgramModal = memo(forwardRef(({ program, onClose, onSave }, ref) => {
             />
           </div>
 
+          <div className="form-group">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+              <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                Offered in Universities ({selectedUniIds.length} selected)
+              </label>
+            </div>
+
+            {/* Search bar on top of offered universities */}
+            <div style={{ position: 'relative', marginBottom: '0.5rem' }}>
+              <Search
+                size={15}
+                style={{
+                  position: 'absolute',
+                  left: '0.75rem',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  color: 'var(--text-secondary)',
+                  pointerEvents: 'none'
+                }}
+              />
+              <input
+                type="text"
+                placeholder="Search offered universities..."
+                value={uniSearch}
+                onChange={(e) => setUniSearch(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '0.5rem 2rem 0.5rem 2.2rem',
+                  borderRadius: '8px',
+                  background: 'var(--field-bg)',
+                  border: '1px solid var(--glass-border)',
+                  color: 'var(--text-primary)',
+                  fontSize: '0.82rem',
+                  outline: 'none',
+                  boxSizing: 'border-box'
+                }}
+              />
+              {uniSearch && (
+                <button
+                  type="button"
+                  onClick={() => setUniSearch('')}
+                  style={{
+                    position: 'absolute',
+                    right: '0.6rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}
+                  aria-label="Clear university search"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+
+            <div style={{
+              maxHeight: '160px',
+              overflowY: 'auto',
+              border: '1px solid var(--glass-border)',
+              borderRadius: '12px',
+              padding: '0.75rem',
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+              gap: '0.4rem',
+              background: 'rgba(0,0,0,0.15)'
+            }}>
+              {filteredUnis.map(u => {
+                const isSelected = selectedUniIds.includes(u.id);
+                return (
+                  <label
+                    key={u.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      padding: '0.4rem 0.6rem',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      fontSize: '0.82rem',
+                      background: isSelected ? 'rgba(0, 242, 254, 0.1)' : 'transparent',
+                      border: `1px solid ${isSelected ? 'rgba(0, 242, 254, 0.3)' : 'transparent'}`,
+                      color: isSelected ? 'var(--accent-teal)' : 'var(--text-secondary)'
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => setSelectedUniIds(prev => prev.includes(u.id) ? prev.filter(id => id !== u.id) : [...prev, u.id])}
+                      style={{ cursor: 'pointer', accentColor: 'var(--accent-teal)' }}
+                    />
+                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {u.name}
+                    </span>
+                  </label>
+                );
+              })}
+              {filteredUnis.length === 0 && (
+                <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '1rem', color: 'var(--text-secondary)', fontSize: '0.82rem' }}>
+                  No universities found matching "{uniSearch}"
+                </div>
+              )}
+            </div>
+          </div>
+
           {error && (
             <div role="alert" style={{ color: '#ff4d4d', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(255, 77, 77, 0.1)', padding: '0.75rem', borderRadius: '8px' }}>
               <AlertCircle size={15} /> {error}
@@ -344,7 +469,8 @@ const ProgramManagement = () => {
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'table'
 
-  const allPrograms = programs || EMPTY_ARRAY;
+  const allPrograms = programs?.programs || (Array.isArray(programs) ? programs : EMPTY_ARRAY);
+  const allUniversities = programs?.universities || EMPTY_ARRAY;
 
   // Filter programs by category & search
   const filteredPrograms = useMemo(() => {
@@ -379,15 +505,32 @@ const ProgramManagement = () => {
   const endIndex = Math.min(validCurrentPage * pageSize, totalItems);
 
   // CRUD Operations
-  const handleSave = useCallback(async (formData) => {
+  const handleSave = useCallback(async (saveData) => {
     try {
+      const { university_ids, ...formData } = saveData;
+      let programId = selectedProg?.id;
       if (modalMode === 'add') {
-        const { error: err } = await supabase.from('programs').insert([formData]);
+        const { data: newProg, error: err } = await supabase.from('programs').insert([formData]).select().single();
         if (err) throw err;
+        programId = newProg.id;
       } else {
         const { error: err } = await supabase.from('programs').update(formData).eq('id', selectedProg.id);
         if (err) throw err;
       }
+
+      if (university_ids && programId) {
+        const currentUnis = selectedProg?.university_ids || [];
+        const toAdd = university_ids.filter(uid => !currentUnis.includes(uid));
+        const toRemove = currentUnis.filter(uid => !university_ids.includes(uid));
+
+        if (toRemove.length > 0) {
+          await supabase.from('program_universities').delete().eq('program_id', programId).in('university_id', toRemove);
+        }
+        if (toAdd.length > 0) {
+          await supabase.from('program_universities').insert(toAdd.map(uid => ({ program_id: programId, university_id: uid })));
+        }
+      }
+
       mutate();
     } catch (err) {
       alert('Error saving program: ' + err.message);
@@ -798,6 +941,7 @@ const ProgramManagement = () => {
         {modalMode ? (
           <ProgramModal
             program={selectedProg}
+            universities={allUniversities}
             onClose={() => setModalMode(null)}
             onSave={handleSave}
           />

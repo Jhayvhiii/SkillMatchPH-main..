@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, useDeferredValue, memo, useMemo } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Search, RefreshCw, X, Loader, Check, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Users, Clock, CheckCircle } from 'lucide-react';
+import { Search, RefreshCw, X, Loader, Check, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Users, Archive, RotateCcw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import useSWR from 'swr';
 import { useLocation, useSearchParams } from 'react-router-dom';
@@ -86,10 +86,11 @@ const StudentManagement = () => {
   // Filters & State
   const [searchTerm, setSearchTerm] = useState('');
   const deferredSearchTerm = useDeferredValue(searchTerm);
-  const [activeTab, setActiveTab] = useState('all'); // 'all' | 'needs_approval' | 'active'
+  const [activeTab, setActiveTab] = useState('all'); // 'all' | 'archived'
   const [strandFilter, setStrandFilter] = useState('ALL');
   const [highlightedStudentId, setHighlightedStudentId] = useState(null);
   const [approvingId, setApprovingId] = useState(null);
+  const [archivingId, setArchivingId] = useState(null);
 
   // Pagination (Fixes infinite scrolling!)
   const [currentPage, setCurrentPage] = useState(1);
@@ -110,16 +111,15 @@ const StudentManagement = () => {
 
   // Counts for tabs
   const counts = useMemo(() => {
-    let pending = 0;
-    let approved = 0;
+    let nonArchived = 0;
+    let archived = 0;
     students.forEach((s) => {
-      if (s.status === 'pending') pending++;
-      else approved++;
+      if (s.status === 'archived') archived++;
+      else nonArchived++;
     });
     return {
-      all: students.length,
-      needs_approval: pending,
-      active: approved
+      all: nonArchived,
+      archived: archived
     };
   }, [students]);
 
@@ -137,8 +137,10 @@ const StudentManagement = () => {
     if (!targetStudentId || isLoading || !students.some((student) => student.id === targetStudentId)) return undefined;
 
     const targetStudent = students.find((s) => s.id === targetStudentId);
-    if (targetStudent && targetStudent.status === 'pending') {
-      setActiveTab('needs_approval');
+    if (targetStudent && targetStudent.status === 'archived') {
+      setActiveTab('archived');
+    } else {
+      setActiveTab('all');
     }
 
     setSearchTerm('');
@@ -172,13 +174,52 @@ const StudentManagement = () => {
     }
   }, [mutate]);
 
+  // Archive action
+  const handleArchive = useCallback(async (id) => {
+    setArchivingId(id);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ status: 'archived' })
+        .eq('id', id);
+
+      if (error) throw error;
+      mutate(prev => prev.map(s => (s.id === id ? { ...s, status: 'archived' } : s)), false);
+    } catch (err) {
+      alert('Error archiving student: ' + err.message);
+    } finally {
+      setArchivingId(null);
+    }
+  }, [mutate]);
+
+  // Unarchive / Restore action
+  const handleUnarchive = useCallback(async (id) => {
+    setArchivingId(id);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ status: 'approved' })
+        .eq('id', id);
+
+      if (error) throw error;
+      mutate(prev => prev.map(s => (s.id === id ? { ...s, status: 'approved' } : s)), false);
+    } catch (err) {
+      alert('Error unarchiving student: ' + err.message);
+    } finally {
+      setArchivingId(null);
+    }
+  }, [mutate]);
+
   // Filtered dataset
   const filteredStudents = useMemo(() => {
     const lowerQuery = deferredSearchTerm.toLowerCase();
     return students.filter((student) => {
       // Tab filter
-      if (activeTab === 'needs_approval' && student.status !== 'pending') return false;
-      if (activeTab === 'active' && student.status === 'pending') return false;
+      if (activeTab === 'archived') {
+        if (student.status !== 'archived') return false;
+      } else {
+        if (student.status === 'archived') return false;
+      }
 
       // Strand filter
       if (strandFilter !== 'ALL' && student.shs_strand !== strandFilter) return false;
@@ -291,7 +332,7 @@ const StudentManagement = () => {
 
             <button
               type="button"
-              onClick={() => setActiveTab('needs_approval')}
+              onClick={() => setActiveTab('archived')}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -299,56 +340,23 @@ const StudentManagement = () => {
                 padding: '0.45rem 0.9rem',
                 borderRadius: '8px',
                 border: 'none',
-                background: activeTab === 'needs_approval' ? 'var(--warning)' : 'transparent',
-                color: activeTab === 'needs_approval' ? '#ffffff' : 'var(--text-secondary)',
-                fontWeight: activeTab === 'needs_approval' ? 700 : 500,
+                background: activeTab === 'archived' ? 'var(--accent-teal)' : 'transparent',
+                color: activeTab === 'archived' ? 'var(--on-accent)' : 'var(--text-secondary)',
+                fontWeight: activeTab === 'archived' ? 700 : 500,
                 fontSize: '0.85rem',
                 cursor: 'pointer',
                 transition: 'all 0.2s ease'
               }}
             >
-              <Clock size={15} /> Needs Approval
-              {counts.needs_approval > 0 && (
-                <span style={{
-                  fontSize: '0.75rem',
-                  padding: '0.1rem 0.45rem',
-                  borderRadius: '999px',
-                  background: activeTab === 'needs_approval' ? 'rgba(0,0,0,0.2)' : 'rgba(251, 191, 36, 0.25)',
-                  color: activeTab === 'needs_approval' ? '#ffffff' : 'var(--warning)',
-                  fontWeight: 700
-                }}>
-                  {counts.needs_approval}
-                </span>
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('active')}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.4rem',
-                padding: '0.45rem 0.9rem',
-                borderRadius: '8px',
-                border: 'none',
-                background: activeTab === 'active' ? 'var(--success)' : 'transparent',
-                color: activeTab === 'active' ? '#ffffff' : 'var(--text-secondary)',
-                fontWeight: activeTab === 'active' ? 700 : 500,
-                fontSize: '0.85rem',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease'
-              }}
-            >
-              <CheckCircle size={15} /> Approved
+              <Archive size={15} /> Archived
               <span style={{
                 fontSize: '0.75rem',
                 padding: '0.1rem 0.45rem',
                 borderRadius: '999px',
-                background: activeTab === 'active' ? 'rgba(0,0,0,0.2)' : 'var(--glass-border)',
-                color: activeTab === 'active' ? '#ffffff' : 'var(--text-primary)'
+                background: activeTab === 'archived' ? 'rgba(0,0,0,0.15)' : 'var(--glass-border)',
+                color: activeTab === 'archived' ? 'var(--on-accent)' : 'var(--text-primary)'
               }}>
-                {counts.active}
+                {counts.archived}
               </span>
             </button>
           </div>
@@ -496,37 +504,103 @@ const StudentManagement = () => {
                       {new Date(student.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                     </td>
                     <td style={{ textAlign: 'right', paddingRight: '1.25rem' }}>
-                      {isPending ? (
+                      {activeTab === 'archived' ? (
                         <button
                           type="button"
-                          onClick={() => handleApprove(student.id)}
-                          disabled={isCurrentApproving}
-                          className="icon-btn"
+                          onClick={() => handleUnarchive(student.id)}
+                          disabled={archivingId === student.id}
                           style={{
                             display: 'inline-flex',
                             alignItems: 'center',
                             gap: '0.35rem',
-                            color: '#000',
-                            background: 'var(--accent-teal)',
-                            border: 'none',
-                            fontSize: '0.78rem',
-                            fontWeight: 700,
-                            padding: '0.38rem 0.85rem',
+                            width: 'fit-content',
+                            padding: '0.35rem 0.7rem',
                             borderRadius: '8px',
+                            border: '1px solid rgba(0, 242, 254, 0.35)',
+                            background: 'rgba(0, 242, 254, 0.12)',
+                            color: 'var(--accent-teal)',
+                            fontSize: '0.78rem',
+                            fontWeight: 600,
                             cursor: 'pointer',
-                            boxShadow: '0 2px 8px rgba(0, 242, 254, 0.25)',
+                            whiteSpace: 'nowrap',
+                            boxSizing: 'border-box',
                             transition: 'all 0.2s ease'
                           }}
+                          title="Restore student to active"
                         >
-                          {isCurrentApproving ? (
+                          {archivingId === student.id ? (
                             <Loader size={13} className="animate-spin" />
                           ) : (
-                            <Check size={13} />
+                            <RotateCcw size={13} />
                           )}
-                          Approve
+                          Unarchive
                         </button>
                       ) : (
-                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>—</span>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                          {isPending ? (
+                            <button
+                              type="button"
+                              onClick={() => handleApprove(student.id)}
+                              disabled={isCurrentApproving}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.35rem',
+                                width: 'fit-content',
+                                color: '#000',
+                                background: 'var(--accent-teal)',
+                                border: 'none',
+                                fontSize: '0.78rem',
+                                fontWeight: 700,
+                                padding: '0.35rem 0.7rem',
+                                borderRadius: '8px',
+                                cursor: 'pointer',
+                                boxShadow: '0 2px 8px rgba(0, 242, 254, 0.25)',
+                                transition: 'all 0.2s ease',
+                                whiteSpace: 'nowrap',
+                                boxSizing: 'border-box'
+                              }}
+                            >
+                              {isCurrentApproving ? (
+                                <Loader size={13} className="animate-spin" />
+                              ) : (
+                                <Check size={13} />
+                              )}
+                              Approve
+                            </button>
+                          ) : null}
+
+                          <button
+                            type="button"
+                            onClick={() => handleArchive(student.id)}
+                            disabled={archivingId === student.id}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              width: 'fit-content',
+                              padding: '0.35rem 0.7rem',
+                              borderRadius: '8px',
+                              border: '1px solid rgba(239, 68, 68, 0.35)',
+                              background: 'rgba(239, 68, 68, 0.12)',
+                              color: '#ef4444',
+                              fontSize: '0.78rem',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              whiteSpace: 'nowrap',
+                              boxSizing: 'border-box',
+                              transition: 'all 0.2s ease'
+                            }}
+                            title="Archive this student"
+                          >
+                            {archivingId === student.id ? (
+                              <Loader size={13} className="animate-spin" />
+                            ) : (
+                              <Archive size={13} />
+                            )}
+                            Archive
+                          </button>
+                        </div>
                       )}
                     </td>
                   </motion.tr>

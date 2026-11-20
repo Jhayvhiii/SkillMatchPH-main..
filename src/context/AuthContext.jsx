@@ -140,6 +140,23 @@ export const AuthProvider = ({ children }) => {
   const signIn = async (identifier, password) => {
     const normalizedIdentifier = identifier.trim();
 
+    if (normalizedIdentifier.includes('@')) {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: normalizedIdentifier.toLowerCase(),
+        password,
+      });
+      if (error) {
+        if (/email not confirmed/i.test(error.message)) {
+          const authError = new Error('Please verify your email before signing in.');
+          authError.code = 'email_verification_required';
+          authError.email = normalizedIdentifier.toLowerCase();
+          return { data: null, error: authError };
+        }
+        return { data: null, error: new Error('Invalid email or password.') };
+      }
+      return { data, error: null };
+    }
+
     const { data, error } = await supabase.functions.invoke('username-login', {
       body: { username: normalizedIdentifier, password },
     });

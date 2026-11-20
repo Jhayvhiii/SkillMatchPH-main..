@@ -98,8 +98,15 @@ const UniversityCard = memo(forwardRef(({ university, onEdit, onDelete, index },
 
 const UniversityModal = memo(forwardRef(({ university, programs, onClose, onSave }, ref) => {
   const [formData, setFormData] = useState(() => university || INITIAL_UNI_FORM);
+  const [programSearch, setProgramSearch] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState(null);
+
+  const filteredPrograms = useMemo(() => {
+    if (!programSearch.trim()) return programs || EMPTY_ARRAY;
+    const q = programSearch.toLowerCase();
+    return (programs || EMPTY_ARRAY).filter(p => p.title.toLowerCase().includes(q));
+  }, [programs, programSearch]);
 
   const toggleProgram = useCallback((id) => {
     setFormData(prev => ({
@@ -218,9 +225,65 @@ const UniversityModal = memo(forwardRef(({ university, programs, onClose, onSave
           </div>
 
           <div className="form-group">
-            <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '0.5rem' }}>
-              Offered Degree Programs ({formData.program_ids.length} selected)
-            </label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+              <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                Offered Degree Programs ({formData.program_ids.length} selected)
+              </label>
+            </div>
+
+            {/* Search bar on top of offered degree programs */}
+            <div style={{ position: 'relative', marginBottom: '0.5rem' }}>
+              <Search
+                size={15}
+                style={{
+                  position: 'absolute',
+                  left: '0.75rem',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  color: 'var(--text-secondary)',
+                  pointerEvents: 'none'
+                }}
+              />
+              <input
+                type="text"
+                placeholder="Search offered degree programs..."
+                value={programSearch}
+                onChange={(e) => setProgramSearch(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '0.5rem 2rem 0.5rem 2.2rem',
+                  borderRadius: '8px',
+                  background: 'var(--field-bg)',
+                  border: '1px solid var(--glass-border)',
+                  color: 'var(--text-primary)',
+                  fontSize: '0.82rem',
+                  outline: 'none',
+                  boxSizing: 'border-box'
+                }}
+              />
+              {programSearch && (
+                <button
+                  type="button"
+                  onClick={() => setProgramSearch('')}
+                  style={{
+                    position: 'absolute',
+                    right: '0.6rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}
+                  aria-label="Clear program search"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+
             <div style={{
               maxHeight: '180px',
               overflowY: 'auto',
@@ -232,7 +295,7 @@ const UniversityModal = memo(forwardRef(({ university, programs, onClose, onSave
               gap: '0.4rem',
               background: 'rgba(0,0,0,0.15)'
             }}>
-              {programs.map(prog => {
+              {filteredPrograms.map(prog => {
                 const isSelected = formData.program_ids.includes(prog.id);
                 return (
                   <label
@@ -262,6 +325,11 @@ const UniversityModal = memo(forwardRef(({ university, programs, onClose, onSave
                   </label>
                 );
               })}
+              {filteredPrograms.length === 0 && (
+                <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '1rem', color: 'var(--text-secondary)', fontSize: '0.82rem' }}>
+                  No programs found matching "{programSearch}"
+                </div>
+              )}
             </div>
           </div>
 

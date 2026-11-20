@@ -26,6 +26,18 @@ const AdminRegistration = ({ embedded = false, onBack }) => {
     setLoading(true);
     setError('');
 
+    if (form.password.length < 8) {
+      setError('Password must be at least 8 characters long.');
+      setLoading(false);
+      return;
+    }
+
+    if (!/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?~`]/.test(form.password)) {
+      setError('Password must contain at least one special character (e.g. !@#$%^&*).');
+      setLoading(false);
+      return;
+    }
+
     const { data, error: signUpError } = await supabase.auth.signUp({
       email: form.email.trim(),
       password: form.password,

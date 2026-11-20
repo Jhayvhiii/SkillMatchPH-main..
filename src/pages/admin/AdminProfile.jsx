@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react';
-import { AtSign, CheckCircle2, Eye, EyeOff, KeyRound, Loader2, Lock, Save, ShieldCheck } from 'lucide-react';
+import { Mail, CheckCircle2, Eye, EyeOff, KeyRound, Loader2, Lock, Save, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 
+const SPECIAL_CHAR_REGEX = /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?~`]/;
+
 const AdminProfile = () => {
   const { user, profile, refreshProfile } = useAuth();
-  const [username, setUsername] = useState(profile?.username || '');
-  const [savingUsername, setSavingUsername] = useState(false);
-  const [usernameError, setUsernameError] = useState('');
-  const [usernameSuccess, setUsernameSuccess] = useState('');
+  const [email, setEmail] = useState(user?.email || '');
+  const [savingEmail, setSavingEmail] = useState(false);
+  const [emailError, setEmailError] = useState('');
+  const [emailSuccess, setEmailSuccess] = useState('');
 
   // Password change state
   const [newPassword, setNewPassword] = useState('');
@@ -20,28 +22,38 @@ const AdminProfile = () => {
   const [passwordSuccess, setPasswordSuccess] = useState('');
 
   useEffect(() => {
-    setUsername(profile?.username || '');
-  }, [profile?.username]);
+    if (user?.email) {
+      setEmail(user.email);
+    }
+  }, [user?.email]);
 
-  const saveUsername = async (event) => {
+  const saveEmail = async (event) => {
     event.preventDefault();
-    setSavingUsername(true);
-    setUsernameError('');
-    setUsernameSuccess('');
+    setSavingEmail(true);
+    setEmailError('');
+    setEmailSuccess('');
 
-    const { data, error: updateError } = await supabase.rpc('update_own_admin_username', {
-      requested_username: username,
-    });
-    setSavingUsername(false);
-
-    if (updateError) {
-      setUsernameError(updateError.message || 'Unable to update your username.');
+    const targetEmail = email.trim().toLowerCase();
+    if (!targetEmail || !targetEmail.includes('@')) {
+      setEmailError('Please enter a valid email address.');
+      setSavingEmail(false);
       return;
     }
 
-    setUsername(data);
-    await refreshProfile();
-    setUsernameSuccess('Username updated. Use it the next time you sign in.');
+    try {
+      const { error: updateError } = await supabase.auth.updateUser({
+        email: targetEmail,
+      });
+
+      if (updateError) throw updateError;
+
+      await refreshProfile();
+      setEmailSuccess('Confirmation request sent. Please check your inbox to confirm your new email address.');
+    } catch (err) {
+      setEmailError(err.message || 'Unable to update your email. Please try again.');
+    } finally {
+      setSavingEmail(false);
+    }
   };
 
   const savePassword = async (event) => {
@@ -51,6 +63,11 @@ const AdminProfile = () => {
 
     if (newPassword.length < 8) {
       setPasswordError('New password must be at least 8 characters long.');
+      return;
+    }
+
+    if (!SPECIAL_CHAR_REGEX.test(newPassword)) {
+      setPasswordError('New password must contain at least one special character (e.g. !@#$%^&*).');
       return;
     }
 
@@ -84,7 +101,7 @@ const AdminProfile = () => {
       <header className="page-header">
         <div>
           <h1 style={{ marginBottom: '0.5rem' }}>Admin Profile</h1>
-          <p style={{ color: 'var(--text-secondary)' }}>Manage your administrator identity, login username, and security settings.</p>
+          <p style={{ color: 'var(--text-secondary)' }}>Manage your administrator identity, registered email, and security settings.</p>
         </div>
       </header>
 
@@ -97,36 +114,34 @@ const AdminProfile = () => {
           </div>
         </div>
 
-        {/* Username form */}
-        <form onSubmit={saveUsername} className="admin-profile-form">
-          <label htmlFor="admin-profile-username">Login username</label>
+        {/* Change Email form */}
+        <form onSubmit={saveEmail} className="admin-profile-form">
+          <label htmlFor="admin-profile-email">Change Email</label>
           <div className="admin-profile-input">
-            <AtSign size={18} />
+            <Mail size={18} />
             <input
-              id="admin-profile-username"
+              id="admin-profile-email"
+              type="email"
               required
-              minLength="3"
-              maxLength="30"
-              pattern="[A-Za-z0-9][A-Za-z0-9._-]{2,29}"
-              title="Use 3–30 letters, numbers, dots, underscores, or hyphens."
-              autoComplete="username"
-              value={username}
-              onChange={(event) => setUsername(event.target.value)}
+              autoComplete="email"
+              placeholder="e.g. administrator@gmail.com"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
             />
           </div>
-          <small>3–30 characters. Letters, numbers, dots, underscores, and hyphens are allowed.</small>
+          <small>Enter your registered Gmail or email address used for sign-in.</small>
 
-          {usernameError ? <p className="admin-action-error">{usernameError}</p> : null}
-          {usernameSuccess ? <p className="admin-profile-success"><CheckCircle2 size={17} /> {usernameSuccess}</p> : null}
+          {emailError ? <p className="admin-action-error">{emailError}</p> : null}
+          {emailSuccess ? <p className="admin-profile-success"><CheckCircle2 size={17} /> {emailSuccess}</p> : null}
 
           <button
             type="submit"
             className="invite-create-btn"
-            disabled={savingUsername || username.trim().toLowerCase() === profile?.username}
+            disabled={savingEmail || email.trim().toLowerCase() === user?.email?.toLowerCase()}
             style={{ width: 'fit-content' }}
           >
-            {savingUsername ? <Loader2 className="animate-spin" size={17} /> : <Save size={17} />}
-            {savingUsername ? 'Saving…' : 'Save username'}
+            {savingEmail ? <Loader2 className="animate-spin" size={17} /> : <Save size={17} />}
+            {savingEmail ? 'Saving…' : 'Update email'}
           </button>
         </form>
       </section>
@@ -149,7 +164,7 @@ const AdminProfile = () => {
           <div>
             <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700 }}>Security & Password</h2>
             <p style={{ margin: '0.2rem 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-              Update your account password with confirmation.
+              Update your account password. Requires at least 8 characters and a special character.
             </p>
           </div>
         </div>
@@ -166,7 +181,7 @@ const AdminProfile = () => {
               minLength="8"
               maxLength="128"
               autoComplete="new-password"
-              placeholder="Enter new password (min. 8 characters)"
+              placeholder="Enter new password (min. 8 chars, 1 special char)"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               style={{ paddingRight: '2.8rem' }}
@@ -228,7 +243,7 @@ const AdminProfile = () => {
               {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
           </div>
-          <small>Must be at least 8 characters long and match above.</small>
+          <small>Must be at least 8 characters long, include a special character (!@#$%^&*), and match above.</small>
 
           {passwordError ? <p className="admin-action-error">{passwordError}</p> : null}
           {passwordSuccess ? <p className="admin-profile-success"><CheckCircle2 size={17} /> {passwordSuccess}</p> : null}

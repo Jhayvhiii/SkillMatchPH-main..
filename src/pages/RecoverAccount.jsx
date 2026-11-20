@@ -138,13 +138,19 @@ const RecoverAccount = () => {
     if (!event.currentTarget.reportValidity()) return;
 
     const normalizedUsername = username.trim().toLowerCase();
-    if (action === 'password' && (password.length < 8 || password.length > 128)) {
-      setError('Use a password between 8 and 128 characters.');
-      return;
-    }
-    if (action === 'password' && password !== confirmation) {
-      setError('Passwords do not match. Please re-enter your new password.');
-      return;
+    if (action === 'password') {
+      if (password.length < 8 || password.length > 128) {
+        setError('Use a password between 8 and 128 characters.');
+        return;
+      }
+      if (!/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?~`]/.test(password)) {
+        setError('Password must contain at least one special character (e.g. !@#$%^&*).');
+        return;
+      }
+      if (password !== confirmation) {
+        setError('Passwords do not match. Please re-enter your new password.');
+        return;
+      }
     }
     if (action === 'username' && !USERNAME_PATTERN.test(normalizedUsername)) {
       setError('Use a username of 3–30 characters, starting with a letter or number, with only letters, numbers, dots, underscores, or hyphens.');
@@ -272,7 +278,7 @@ const RecoverAccount = () => {
                               {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                             </button>
                           </div>
-                          <small id="password-hint" className="recovery-note">Use 8–128 characters.</small>
+                          <small id="password-hint" className="recovery-note">Use 8–128 characters with at least one special character (!@#$%^&*).</small>
                         </div>
                         <div>
                           <label className="recovery-field-label" htmlFor="confirm-password">Confirm new password</label>

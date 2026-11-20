@@ -66,6 +66,16 @@ const AuthForm = ({ isLogin, toggleForm, showAdminRegistration, showAdminContact
         }
         if (error) throw error;
       } else {
+        if (formData.password.length < 8) {
+          setError('Password must be at least 8 characters long.');
+          setLoading(false);
+          return;
+        }
+        if (!/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?~`]/.test(formData.password)) {
+          setError('Password must contain at least one special character (e.g. !@#$%^&*).');
+          setLoading(false);
+          return;
+        }
         if (formData.password !== formData.confirmPassword) {
           setError('Passwords do not match.');
           setLoading(false);
@@ -240,11 +250,11 @@ const AuthForm = ({ isLogin, toggleForm, showAdminRegistration, showAdminContact
 
               {isLogin ? (
                 <div className="input-group">
-                  <AtSign className="input-icon" size={18} />
+                  <Mail className="input-icon" size={18} />
                   <input
-                    type="text"
-                    placeholder="Username"
-                    autoComplete="username"
+                    type="email"
+                    placeholder="Registered Email"
+                    autoComplete="email"
                     required
                     value={formData.identifier}
                     onChange={handleChange('identifier')}
@@ -277,8 +287,9 @@ const AuthForm = ({ isLogin, toggleForm, showAdminRegistration, showAdminContact
                 <Lock className="input-icon" size={18} />
                 <input
                   type={showPassword ? 'text' : 'password'}
-                  placeholder="Password"
+                  placeholder={isLogin ? 'Password' : 'Password (min. 8 chars, 1 special char)'}
                   required
+                  minLength={isLogin ? undefined : "8"}
                   value={formData.password}
                   onChange={handleChange('password')}
                 />
@@ -324,7 +335,7 @@ const AuthForm = ({ isLogin, toggleForm, showAdminRegistration, showAdminContact
                       className="password-help-link"
                       onClick={showAdminContact}
                     >
-                      Forgot your username or password?
+                      Forgot your email or password?
                     </button>
                   </span>
                 </div>
@@ -344,11 +355,6 @@ const AuthForm = ({ isLogin, toggleForm, showAdminRegistration, showAdminContact
               <button onClick={toggleForm} className="toggle-link" disabled={loading}>
                 {isLogin ? 'Sign Up' : 'Log In'}
               </button>
-              {isLogin ? (
-                <div className="admin-invite-link">
-                  Have an administrator invite? <button type="button" onClick={showAdminRegistration}>Register here</button>
-                </div>
-              ) : null}
             </div>
         </motion.div>
       </AnimatePresence>
